@@ -34,6 +34,9 @@ vec2 mainSound(float time) {
     // float freq = mod(beat, 4.) >= 1. ? 440. : 880.;
     // float amp = exp(-6. * fract(beat));
     // return vec2(sine(freq, time) * amp);
+ 
+    // 音叉の基準音 
+    // return vec2(sin(6.2831 * 440. * time));
    
     // 単純な減衰 
     // return vec2(sin(6.28131 * 440. * time) * exp(-3. * time));

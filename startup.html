@@ -4,13 +4,15 @@
 </head>
 <body>
 <script>
-// ------------------------------------------------------------------------------
-// ref:
-// https://qiita.com/aa_debdeb/items/5e1204987236f7b52393
-// https://raku-phys.hatenablog.com/entry/2020/04/19/002400
-// ------------------------------------------------------------------------------
-    
-    
+    // ------------------------------------------------------------------------------
+    // ref:
+    // https://qiita.com/aa_debdeb/items/5e1204987236f7b52393
+    // https://raku-phys.hatenablog.com/entry/2020/04/19/002400
+    // https://www.shadertoy.com/view/3dsBz4
+    // https://github.com/fms-cat/20180310-glsl-music/
+    // ------------------------------------------------------------------------------
+
+
     const vertexShaderText = `#version 300 es
 
 uniform float uBlockOffset;
@@ -19,35 +21,238 @@ uniform float uSampleRate;
 out vec2 vSound;
 
 #define BPM 120.0
+#define PI 3.1415
+#define TAU 6.2831
+
+// -----------
+// noise
+// ref: https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83 
+//
+
+// float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+// vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+// vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
+// 
+// float noise(vec3 p){
+//     vec3 a = floor(p);
+//     vec3 d = p - a;
+//     d = d * d * (3.0 - 2.0 * d);
+// 
+//     vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
+//     vec4 k1 = perm(b.xyxy);
+//     vec4 k2 = perm(k1.xyxy + b.zzww);
+// 
+//     vec4 c = k2 + a.zzzz;
+//     vec4 k3 = perm(c);
+//     vec4 k4 = perm(c + 1.0);
+// 
+//     vec4 o1 = fract(k3 * (1.0 / 41.0));
+//     vec4 o2 = fract(k4 * (1.0 / 41.0));
+// 
+//     vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
+//     vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
+// 
+//     return o4.y * d.y + o4.x * (1.0 - d.y);
+// }
+
+// https://www.shadertoy.com/view/4djSRW
+vec4 noise(float p) {
+    vec4 p4 = fract(vec4(p) * vec4(.1050, .1030, .0973, .1099));
+    p4 += dot(p4, p4.wzxy + 55.33);
+    return fract((p4.xxyz + p4.yzzw) * p4.zywx);
+}
+
+// ----------
+
 
 float timeToBeat(float time) {
     return time / 60. * BPM;
 }
 
-float sine(float freq, float time) {
-    return sin(freq * 6.28318530718 * time);
+float beatToTime(float beat) {
+    return beat / BPM * 60.;
 }
+
+float noteToFreq(float n) {
+    return 440. * pow(2., (n - 69.) / 12.);
+}
+
+float chord(float n) {
+    return (
+        n < 1. ? 55. :
+        n < 2. ? 58. :
+        n < 3. ? 62. :
+                 65.
+    );
+}
+
+float sine(float freq, float time) {
+    return sin(freq * TAU * time);
+}
+
+float sine(float phase) {
+    return sin(TAU * phase);
+}
+
+float rhy(float time, float fade) {
+    return pow(fract(-time), 6. - fade * 3.);
+}
+
+vec2 delay(float time, float dt) {
+    return exp(-2. * dt) * sin(6.4831 * 440. * time) * vec2(rhy(time - dt * .3, dt), rhy(time - dt * .5, dt));   
+}
+
+// FM音源。ボーーーーンという音
+float fm_test(float time) {
+    return sin(1000. * time + sin(300. * time));
+}
+
+float fm(float time, float f, float fm, float amp) {
+    return sin(TAU * f * time + amp * sin(TAU * fm * time));
+}
+
+float saw(float phase) {
+    return 2. * fract(phase) - 1.;
+}
+
+float square(float phase) {
+    return fract(phase) < .5 ? -1. : 1.;
+}
+
+float triangle(float phase) {
+    return 1. - 4. * abs(fract(phase) - .5);
+}
+
+float kick(float time) {
+    float amp = exp(-5. * time);
+    float phase = 50. * time - 10. * exp(-70. * time);
+    return amp * sine(phase);
+}
+
+vec2 hihat1(float time) {
+    float amp = exp(-50. * time);
+    return amp * noise(time * 100.).xy;
+}
+
+vec2 hihat2(float time) {
+    float amp = exp(-70. * time);
+    return amp * noise(time * 300.).xy;
+}
+
+vec2 bass(float note, float time) {
+    float freq = noteToFreq(note);
+    return vec2(square(freq * time) + sine(freq * time)) / 2.;
+}
+
+vec2 pad(float note, float time) {
+    float freq = noteToFreq(note);
+    float vib = .2 * sine(3. * time);
+    return vec2(
+        saw(freq * .99 * time + vib),
+        saw(freq * 1.01 * time + vib)
+    );
+}
+
+vec2 arp(float note, float time) {
+    float freq = noteToFreq(note);
+    float fmamp = .1 * exp(-50. * time);
+    float fm = fmamp * sine(time * freq * 7.);
+    float amp = exp(-20. * time);
+    return amp * vec2(
+        sine(freq * .99 * time + fm),
+        sine(freq * 1.01 * time + fm)
+    );
+}
+ 
+// float sine(float phase) {
+//     return sin(TAU * phase);
+// }
 
 // ステレオ出力のためvec2
 vec2 mainSound(float time) {
-    // float beat = timeToBeat(time);
+    
     // float freq = mod(beat, 4.) >= 1. ? 440. : 880.;
     // float amp = exp(-6. * fract(beat));
     // return vec2(sine(freq, time) * amp);
  
     // 音叉の基準音 
-    // return vec2(sin(6.2831 * 440. * time));
+    // return vec2(sin(TAU * 440. * time));
    
     // 単純な減衰 
-    // return vec2(sin(6.28131 * 440. * time) * exp(-3. * time));
+    // return vec2(sin(TAU * 440. * time) * exp(-3. * time));
     
     // 合計が1を超えるときがあり、きれいな波形にはならない. 音は-1~1の範囲に収まりクリップされるため
-    // return vec2(sin(6.2831 * 440. * time) + sin(6.2831 * 440. * 1.5 * time));
+    // return vec2(sin(TAU * 440. * time) + sin(6.2831 * 440. * 1.5 * time));
     
     // 左右でちょっとwaveが変わるように
-    // return vec2(sin(6.2831 * 440. * time) * .4 + sin(6.2831 * 440. * 1.5 * time) * .2);
+    // return vec2(sin(TAU * 440. * time) * .4 + sin(6.2831 * 440. * 1.5 * time) * .2);
+   
+    // 持ち上がってから鳴る: ポーン, ポーン, ポーン...
+    // return vec2(sin(TAU * 440. * time) * fract(-2. * time));
+   
+    // 高速振動するsinに大きい値をかける -> fractする -> ホワイトノイズっぽいランダムな感じになる
+    // return vec2((fract(sin(time * 1e3) * 1e6) - .5));
     
-    return vec2(sin(6.2831 * 440. * time) * fract(-2. * time));
+    // ↑ に一定時間ごとに減衰してくエンベロープをつけるとハイハットっぽい感じ？
+    // return vec2((fract(sin(time * 1e3) * 1e6) - .5) * fract(-time * 4.));
+  
+    // ハイハットとペダルを組み合わせる感じ？
+    // return vec2((fract(sin(time * 1e3) * 1e6) - .5) * pow(fract(time * -4.), mod(time * 4., 2.) * 8.));
+    
+   
+    // 10100100 
+    // return vec2(sin(6.4831 * 440. * time) * fract(mod(-time * 8., 8.) / 3.));
+   
+    // delay 
+    // vec2 s;
+    // s += delay(time, 0.);
+    // s += delay(time, .5);
+    // s += delay(time, 1.);
+    // s += delay(time, 1.9);
+    // return s * .5;
+    
+    // return vec2(saw(440. * time + (.2 * sine(5., time))));
+    
+    //
+    //
+    //
+    
+    float beat = timeToBeat(time);
+    
+    vec2 sound = vec2(0.);
+ 
+    float kickTime = timeToBeat(time);
+    sound += kick(mod(kickTime, 1.));
+    
+    float sideChain = smoothstep(0., .4, kickTime);
+    
+    float hihat1Time = timeToBeat(time);
+    sound += hihat1(mod(hihat1Time, 1.));
+    float hihat2Time = timeToBeat(time);
+    sound += hihat2(mod(hihat2Time, 1.));
+    
+    float bassNote = chord(0.) - 24.;
+    sound += sideChain * .6 * bass(bassNote, time);
+    
+    sound += sideChain * .6 * vec2(
+        pad(chord(0.), time)
+        + pad(chord(1.), time)
+        + pad(chord(2.), time)
+        + pad(chord(3.), time)
+    ) / 4.;
+    
+    float arpTime = beatToTime(mod(beat, .25));
+    float arpSeed = floor(beat / .25);
+    vec4 arpDice = fract(noise(arpSeed) * 100.);
+    float arpNote = chord(floor(4. * arpDice.x));
+    arpNote += 12. * floor(3. * arpDice.y);
+    sound += sideChain * .5 * vec2(arp(arpNote, arpTime));
+ 
+    //
+    //
+    //
+	
+	return sound;
 }
 
 void main() {
@@ -105,6 +310,18 @@ void main() {}
         return vbo;
     };
 
+    // const createVAO = (gl, attributes) => {
+    //     const vao = gl.createVertexArray();
+    //     gl.bindVertexArray(vao);
+    //     attributes.forEach(({data, usage, location, size}) => {
+    //         const vbo = createVBO(gl, data, usage, false);
+    //         gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0); // dataはfloat32array前提
+    //         gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    //     });
+    //     gl.bindVertexArray(null)
+    //     return vao;
+    // }
+
     const start = () => {
         const audioContext = new AudioContext();
         const audioBuffer = audioContext.createBuffer(2, audioContext.sampleRate * DURATION, audioContext.sampleRate);
@@ -118,16 +335,24 @@ void main() {}
         const uniformLocations = getUniformLocations(gl, program, ["uBlockOffset", "uSampleRate"]);
 
         const array = new Float32Array(2 * SAMPLES); // L,Rのため2倍
+        // const vao = createVAO(gl, [
+        //     {
+        //         location: 0,
+        //         data: array,
+        //         usage: gl.DYNAMIC_COPY,
+        //         size: 3
+        //     }
+        // ]);
         const vbo = createVBO(gl, array, gl.DYNAMIC_COPY);
 
         const transformFeedback = gl.createTransformFeedback();
 
         // transform feedback 1回ごとに更新するサンプル数がSAMPLEなので、それを何回実行するかのかず
         const numBlocks = Math.ceil((audioContext.sampleRate * DURATION) / SAMPLES);
-        
+
         const outputL = audioBuffer.getChannelData(0);
         const outputR = audioBuffer.getChannelData(1);
-       
+
         console.log("sampleRate", audioContext.sampleRate);
         console.log("duration[sec]", DURATION);
         console.log("samples", SAMPLES);
@@ -136,7 +361,7 @@ void main() {}
         console.log("outputR len", outputR.length);
 
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback);
-        
+
         gl.enable(gl.RASTERIZER_DISCARD);
 
         gl.useProgram(program);
@@ -159,16 +384,16 @@ void main() {}
                 outputR[i * SAMPLES + j] = array[j * 2 + 1];
             }
         }
-        
+
         gl.disable(gl.RASTERIZER_DISCARD);
 
         const node = audioContext.createBufferSource();
         node.connect(audioContext.destination);
         node.buffer = audioBuffer;
         node.loop = false;
-        
+
         node.start(0);
-        
+
         return node;
     };
 

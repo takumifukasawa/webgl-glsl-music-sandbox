@@ -62,8 +62,25 @@ vec4 noise(float p) {
     return fract((p4.xxyz + p4.yzzw) * p4.zywx);
 }
 
+
+// https://www.shadertoy.com/view/4sSSWz
+float noise2(float phi) { return fract(sin(phi * 0.055753) * 122.3762) * 4.0 - 3.0; }
+
+
 // ----------
 
+// quantize https://www.shadertoy.com/view/ldfSW2
+float quan(float s, float c) {
+    return floor(s / c) * c;
+}
+
+float nse(float x) {
+    return fract(sin(x * 110.082) * 19871.8972);
+}
+
+float dist(float s, float d) {
+    return clamp(s * d, -1., 1.);
+}
 
 float timeToBeat(float time) {
     return time / 60. * BPM;
@@ -73,15 +90,23 @@ float beatToTime(float beat) {
     return beat / BPM * 60.;
 }
 
+// MIDI:69 = NOTE:A4 = 440Hz
+// なんで12で割るのかはわからない. 半音含め12で1オクターブ変わるから？このあたり？
+// https://newt.phys.unsw.edu.au/jw/notes.html
+// 多分これが式
+// https://www.inspiredacoustics.com/en/MIDI_note_numbers_and_center_frequencies
 float noteToFreq(float n) {
     return 440. * pow(2., (n - 69.) / 12.);
 }
 
 float chord(float n) {
+    if(n < 1.) {
+        return 0.;
+    }
     return (
-        n < 1. ? 55. :
-        n < 2. ? 58. :
-        n < 3. ? 62. :
+        n < 2. ? 55. :
+        n < 3. ? 58. :
+        n < 4. ? 62. :
                  65.
     );
 }
@@ -123,7 +148,7 @@ float triangle(float phase) {
     return 1. - 4. * abs(fract(phase) - .5);
 }
 
-float kick(float time) {
+float kick(float note, float time) {
     float amp = exp(-5. * time);
     float phase = 50. * time - 10. * exp(-70. * time);
     return amp * sine(phase);
@@ -137,6 +162,29 @@ vec2 hihat1(float time) {
 vec2 hihat2(float time) {
     float amp = exp(-70. * time);
     return amp * noise(time * 300.).xy;
+}
+
+vec2 snare(float note, float t) {
+    float i = t * uSampleRate;
+    float env = exp(-t * 17.);
+    float v = .3 * env * (2.3 * noise2(i) + .5 * sin(30. * i));
+    return vec2(v);
+}
+
+vec2 snareFill(float note, float t) {
+    float i = t * uSampleRate;
+    float env = exp(-t * 30.);
+    float v = .2 * env * (2.3 * noise2(i) + .5 * sin(30. * i));
+    return vec2(v);
+}
+
+vec2 crash1(float note, float time) {
+    float aa = 15.;
+    time = sqrt(time * aa) / aa;
+    float amp = exp(max(time - .15, 0.) * -5.);
+    float v = nse(quan(mod(time, .6), .0001));
+    v = dist(v, .1) * amp;
+    return vec2(dist(v * amp, 2.));
 }
 
 vec2 bass(float note, float time) {
@@ -164,12 +212,62 @@ vec2 arp(float note, float time) {
     );
 }
  
-// float sine(float phase) {
-//     return sin(TAU * phase);
+
+// vec2 sequencer(float beat, float time, float beatLen, float[8] notes) {
+//     float index = floor(beat);
+//     float g = fract(beat / beatLen);
+//     float note = notes[int(index)];
+//     vec2 o = vec2(sin(TAU * 440. * time) * exp(-6. * fract(beat))) * note;
+//     return o;
 // }
+
+#define B8 8.
+#define B16 16.
+
+#define SEQUENCER(rawBeat, time, beatLen, notes, toneFunc) \
+    float beat = mod(rawBeat * (beatLen / B8), beatLen); \
+    float beatIndex = floor(beat); \
+    float beatV = fract(beat / beatLen); \
+    float note = notes[int(beatIndex)]; \
+    vec2 res = vec2(toneFunc(note, fract(beat))) * step(.0001, note);
+    
+vec2 padSeqB8(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 0., 65., 65.,
+        0., 65., 65., 65.
+    );
+    SEQUENCER(rawBeat, time, B8, notes, kick);
+    return res;
+}
+
+vec2 padSeqB16(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 65., 65., 0., 0., 65., 65., 65.,
+        65., 65., 0., 65., 0., 65., 65., 65.
+    );
+    SEQUENCER(rawBeat, time, B16, notes, kick);
+    return res;
+}
 
 // ステレオ出力のためvec2
 vec2 mainSound(float time) {
+    // time = mod(time, 180.);
+
+    float kickTime = mod(timeToBeat(time), 1.);
+    // return vec2(kick(65., kickTime));
+    
+    float beat = timeToBeat(time);
+    float beatE = timeToBeat(time * 2.);
+    
+    // float[] notes = float[](1., 0., 1., 0., 1., 0., 1., 1.);
+    // vec2 f = sequencer(mod(beat, 8.), time, 8., notes);
+    // return f;
+    
+    return padSeqB8(beat, time);
+
+    vec2 s1 = vec2(sine(440., time)) * exp(-6. * fract(beat));
+    vec2 s2 = vec2(sine(440., time)) * exp(-6. * fract(beatE));
+    // return s1 + s2;
     
     // float freq = mod(beat, 4.) >= 1. ? 440. : 880.;
     // float amp = exp(-6. * fract(beat));
@@ -217,12 +315,12 @@ vec2 mainSound(float time) {
     //
     //
     
-    float beat = timeToBeat(time);
+    // float beat = timeToBeat(time);
     
     vec2 sound = vec2(0.);
  
-    float kickTime = timeToBeat(time);
-    sound += kick(mod(kickTime, 1.));
+    // float kickTime = mod(timeToBeat(time), 1.);
+    // sound += kick(65., kickTime);
     
     float sideChain = smoothstep(0., .4, kickTime);
     
@@ -249,6 +347,12 @@ vec2 mainSound(float time) {
     sound += sideChain * .5 * vec2(arp(arpNote, arpTime));
  
     //
+    // check sounds
+    //
+
+    sound = snareFill(chord(0.), mod(timeToBeat(time), 1.));
+    
+    //
     //
     //
 	
@@ -268,7 +372,7 @@ void main() {}
 `;
 
     const DURATION = 180; // sec
-    const SAMPLES = 65536;
+    const SAMPLES = 48000;
 
     const createShader = (gl, src, type) => {
         const shader = gl.createShader(type);
@@ -347,7 +451,7 @@ void main() {}
 
         const transformFeedback = gl.createTransformFeedback();
 
-        // transform feedback 1回ごとに更新するサンプル数がSAMPLEなので、それを何回実行するかのかず
+        // transform feedback 1回ごとに更新するサンプル数がSAMPLEなので、それを何回実行するかの数
         const numBlocks = Math.ceil((audioContext.sampleRate * DURATION) / SAMPLES);
 
         const outputL = audioBuffer.getChannelData(0);
@@ -386,9 +490,16 @@ void main() {}
         }
 
         gl.disable(gl.RASTERIZER_DISCARD);
+        
 
         const node = audioContext.createBufferSource();
-        node.connect(audioContext.destination);
+        const gainNode = audioContext.createGain();
+       
+        // 音量調整
+        gainNode.connect(audioContext.destination);
+        gainNode.gain.value = 0.2;
+        
+        node.connect(gainNode);
         node.buffer = audioBuffer;
         node.loop = false;
 

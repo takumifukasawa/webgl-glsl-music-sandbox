@@ -202,12 +202,12 @@ vec2 pad(float note, float time) {
     );
 }
 
-vec2 arp(float note, float time, float length) {
+vec2 arp(float note, float time) {
     float freq = noteToFreq(note);
     float fmamp = .1 * exp(-50. * time);
     float fm = fmamp * sine(time * freq * 7.);
     // float amp = exp(-20. * time);
-    float amp = exp((-20. / length) * time);
+    float amp = exp(-20. * time);
     return amp * vec2(
         sine(freq * .99 * time + fm),
         sine(freq * 1.01 * time + fm)
@@ -239,32 +239,98 @@ vec2 arp(float note, float time, float length) {
 #define B16 16.
 #define B32 32.
 
-#define N(a) a, 1.
-#define L(a, b) a, b
-#define E(a) 0., 1.
-#define B(a, b) 0., b
+// /*
+// 長さも一緒に変化させるテスト
+// */
+//
+// vec2 arp(float note, float time, float length) {
+//     float freq = noteToFreq(note);
+//     float fmamp = .1 * exp(-50. * time);
+//     float fm = fmamp * sine(time * freq * 7.);
+//     // float amp = exp(-20. * time);
+//     float amp = exp((-20. / length) * time);
+//     return amp * vec2(
+//         sine(freq * .99 * time + fm),
+//         sine(freq * 1.01 * time + fm)
+//     );
+// }
+// 
+// #define N(a) a, 1.
+// #define L(a, b) a, b
+// #define E(a) 0., 1.
+// #define B(a, b) 0., b
+// 
+// // notes ... [note_number, length, note_number, length, ...]
+// // beatLength ... beatTempo分の小節がいくつあるか
+// #define SEQUENCER(rawBeat, time, beatTempo, beatLength, notes, toneFunc) \
+//     float divNum = beatTempo / B4; /* 4小節が基準 */ \
+//     float beat = mod(timeToBeat(time * divNum), beatTempo * beatLength); \
+//     float beatIndex = floor(beat); \
+//     float noteNumber = notes[int(beatIndex) * 2]; \
+//     float noteLength = notes[int(beatIndex) * 2 + 1]; \
+//     /* lengthが0の場合は直前のnoteが続いているとき */ \
+//     /* if(noteLength < .5) { \
+//         beatIndex = beatIndex - 1.; \
+//         noteNumber = notes[int(beatIndex) * 2]; \
+//         noteLength = notes[int(beatIndex) * 2 + 1]; \
+//     } */ \
+//     float localTime = beatToTime(mod(beat, 1. * noteLength)) / divNum; \
+//     vec2 res = vec2(toneFunc(noteNumber, localTime, min(1., noteLength))) * (noteNumber > 0. ? 1. : 0.);
+//
+//
+// vec2 padSeqB4(float rawBeat, float time) {
+//     float[] notes = float[](
+//         N(65.), E(0.), N(65.), N(0.),
+//         N(65.), N(65.), N(65.), N(0.)
+//     );
+//     SEQUENCER(rawBeat, time, B4, 2., notes, arp);
+//     return res;
+// }
+//     
+// vec2 padSeqB8(float rawBeat, float time) {
+//     float[] notes = float[](
+//         // 65., 0., 65., 0.,
+//         // 65., 0., 65., 65.
+//         L(65., 3.), E(0.),
+//         N(65.), N(65.), N(0.), E(0.),
+//         N(65.), N(65.), N(0.), N(0.),
+//         N(65.), E(0.), N(65.), N(65.)
+//     );
+//     SEQUENCER(rawBeat, time, B8, 2., notes, arp);
+//     return res;
+// }
+// 
+// vec2 padSeqB16(float rawBeat, float time) {
+//     // float[] notes = float[](
+//     //     65., 65., 65., 0., 0., 65., 65., 65.,
+//     //     65., 65., 0., 65., 0., 65., 65., 65.
+//     // );
+//     // float[] lengths = float[](
+//     //     1., 1., 2., 0., 1., 1., 1.,
+//     //     1., 2., 0., 0., 1., 1., 1.
+//     // );
+//     float[] notes = float[](
+//         N(65.), N(0.), N(65.), N(0.), N(65.), N(0.), N(65.), N(65.),
+//         N(65.), N(0.), N(65.), N(0.), N(65.), N(65.), N(65.), N(65.)
+//     );
+//     SEQUENCER(rawBeat, time, B16, 1., notes, arp);
+//     return res;
+// }
 
-// notes ... [note_number, length, note_number, length, ...]
+// notes ... [note_number, note_number, ...]
 // beatLength ... beatTempo分の小節がいくつあるか
 #define SEQUENCER(rawBeat, time, beatTempo, beatLength, notes, toneFunc) \
     float divNum = beatTempo / B4; /* 4小節が基準 */ \
     float beat = mod(timeToBeat(time * divNum), beatTempo * beatLength); \
     float beatIndex = floor(beat); \
-    float noteNumber = notes[int(beatIndex) * 2]; \
-    float noteLength = notes[int(beatIndex) * 2 + 1]; \
-    /* lengthが0の場合は直前のnoteが続いているとき */ \
-    /* if(noteLength < .5) { \
-        beatIndex = beatIndex - 1.; \
-        noteNumber = notes[int(beatIndex) * 2]; \
-        noteLength = notes[int(beatIndex) * 2 + 1]; \
-    } */ \
-    float localTime = beatToTime(mod(beat, 1. * noteLength)) / divNum; \
-    vec2 res = vec2(toneFunc(noteNumber, localTime, noteLength)) * (noteNumber > 0. ? 1. : 0.);
+    float noteNumber = notes[int(beatIndex)]; \
+    float localTime = beatToTime(mod(beat, 1.)) / divNum; \
+    vec2 res = vec2(toneFunc(noteNumber, localTime)) * (noteNumber > 0. ? 1. : 0.);
 
 vec2 padSeqB4(float rawBeat, float time) {
     float[] notes = float[](
-        N(65.), E(0.), N(65.), N(0.),
-        N(65.), N(65.), N(65.), N(0.)
+        65., 0., 65., 0.,
+        65., 65., 65., 0.
     );
     SEQUENCER(rawBeat, time, B4, 2., notes, arp);
     return res;
@@ -272,40 +338,23 @@ vec2 padSeqB4(float rawBeat, float time) {
     
 vec2 padSeqB8(float rawBeat, float time) {
     float[] notes = float[](
-        // 65., 0., 65., 0.,
-        // 65., 0., 65., 65.
-        L(65., 2.), E(0.), N(65.), N(0.),
-        N(65.), N(65.), N(65.), N(0.),
-        N(65.), N(65.), N(65.), N(65.),
-        N(65.), N(0.), N(65.), N(0.)
+        65., 0., 65., 0.,
+        65., 0., 65., 0.,
+        65., 0., 65., 65.,
+        65., 0., 65., 65.
     );
     SEQUENCER(rawBeat, time, B8, 2., notes, arp);
     return res;
 }
 
-// vec2 padSeq(float rawBeat, float time) {
-//     float[] notes = float[](
-//         O(65.), F(0., .65), O(65.), O(65.),
-//         O(0.), O(65.), O(65.), O(65.)
-//     );
-//     SEQUENCER(rawBeat, time, B8, notes, kick);
-//     return res;
-// }
-
 vec2 padSeqB16(float rawBeat, float time) {
-    // float[] notes = float[](
-    //     65., 65., 65., 0., 0., 65., 65., 65.,
-    //     65., 65., 0., 65., 0., 65., 65., 65.
-    // );
-    // float[] lengths = float[](
-    //     1., 1., 2., 0., 1., 1., 1.,
-    //     1., 2., 0., 0., 1., 1., 1.
-    // );
     float[] notes = float[](
-        N(65.), N(0.), N(65.), N(0.), N(65.), N(0.), N(65.), N(65.),
-        N(65.), N(0.), N(65.), N(0.), N(65.), N(65.), N(65.), N(65.)
+        65., 0., 65., 0., 65., 0., 65., 0.,
+        65., 0., 65., 0., 65., 0., 65., 0.,
+        65., 65., 0., 0., 65., 65., 0., 0.,
+        65., 65., 65., 0., 65., 65., 65., 0.
     );
-    SEQUENCER(rawBeat, time, B16, 1., notes, arp);
+    SEQUENCER(rawBeat, time, B16, 2., notes, arp);
     return res;
 }
 
@@ -324,8 +373,8 @@ vec2 mainSound(float time) {
     // vec2 f = sequencer(mod(beat, 8.), time, 8., notes);
     // return f;
     
-    // return padSeqB16(beat, time);
-    return padSeqB8(beat, time);
+    return padSeqB16(beat, time);
+    // return padSeqB8(beat, time);
     // return padSeqB4(beat, time);
 
     vec2 s1 = vec2(sine(440., time)) * exp(-6. * fract(beat));
@@ -407,7 +456,7 @@ vec2 mainSound(float time) {
     vec4 arpDice = fract(noise(arpSeed) * 100.);
     float arpNote = chord(floor(4. * arpDice.x));
     arpNote += 12. * floor(3. * arpDice.y);
-    // sound += sideChain * .5 * vec2(arp(arpNote, arpTime));
+    sound += sideChain * .5 * vec2(arp(arpNote, arpTime));
  
     //
     // check sounds

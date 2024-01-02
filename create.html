@@ -1,0 +1,472 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<script>
+    // ------------------------------------------------------------------------------
+    // ref:
+    // https://qiita.com/aa_debdeb/items/5e1204987236f7b52393
+    // https://raku-phys.hatenablog.com/entry/2020/04/19/002400
+    // https://www.shadertoy.com/view/3dsBz4
+    // https://github.com/fms-cat/20180310-glsl-music/
+    // ------------------------------------------------------------------------------
+
+
+    const vertexShaderText = `#version 300 es
+
+uniform float uBlockOffset;
+uniform float uSampleRate;
+
+out vec2 vSound;
+
+#define BPM 120.0
+#define PI 3.1415
+#define TAU 6.2831
+ 
+#define B4 4.
+#define B8 8.
+#define B16 16.
+#define B32 32.
+
+// -----------
+// noise
+// ref: https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83 
+//
+
+// float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+// vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+// vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
+// 
+// float noise(vec3 p){
+//     vec3 a = floor(p);
+//     vec3 d = p - a;
+//     d = d * d * (3.0 - 2.0 * d);
+// 
+//     vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
+//     vec4 k1 = perm(b.xyxy);
+//     vec4 k2 = perm(k1.xyxy + b.zzww);
+// 
+//     vec4 c = k2 + a.zzzz;
+//     vec4 k3 = perm(c);
+//     vec4 k4 = perm(c + 1.0);
+// 
+//     vec4 o1 = fract(k3 * (1.0 / 41.0));
+//     vec4 o2 = fract(k4 * (1.0 / 41.0));
+// 
+//     vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
+//     vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
+// 
+//     return o4.y * d.y + o4.x * (1.0 - d.y);
+// }
+
+// https://www.shadertoy.com/view/4djSRW
+vec4 noise(float p) {
+    vec4 p4 = fract(vec4(p) * vec4(.1050, .1030, .0973, .1099));
+    p4 += dot(p4, p4.wzxy + 55.33);
+    return fract((p4.xxyz + p4.yzzw) * p4.zywx);
+}
+
+
+// https://www.shadertoy.com/view/4sSSWz
+float noise2(float phi) { return fract(sin(phi * 0.055753) * 122.3762) * 4.0 - 3.0; }
+
+
+// ----------
+
+// quantize https://www.shadertoy.com/view/ldfSW2
+float quan(float s, float c) {
+    return floor(s / c) * c;
+}
+
+float nse(float x) {
+    return fract(sin(x * 110.082) * 19871.8972);
+}
+
+float dist(float s, float d) {
+    return clamp(s * d, -1., 1.);
+}
+
+// time[sec]
+float timeToBeat(float time) {
+    return time / 60. * BPM;
+}
+
+float beatToTime(float beat) {
+    return beat / BPM * 60.;
+}
+
+// MIDI:69 = NOTE:A4 = 440Hz
+// なんで12で割るのかはわからない. 半音含め12で1オクターブ変わるから？このあたり？
+// https://newt.phys.unsw.edu.au/jw/notes.html
+// 多分これが式
+// https://www.inspiredacoustics.com/en/MIDI_note_numbers_and_center_frequencies
+float noteToFreq(float n) {
+    return 440. * pow(2., (n - 69.) / 12.);
+}
+
+float chord(float n) {
+    if(n < 1.) {
+        return 0.;
+    }
+    return (
+        n < 2. ? 55. :
+        n < 3. ? 58. :
+        n < 4. ? 62. :
+                 65.
+    );
+}
+
+float sine(float freq, float time) {
+    return sin(freq * TAU * time);
+}
+
+float sine(float phase) {
+    return sin(TAU * phase);
+}
+
+float rhy(float time, float fade) {
+    return pow(fract(-time), 6. - fade * 3.);
+}
+
+vec2 delay(float time, float dt) {
+    return exp(-2. * dt) * sin(6.4831 * 440. * time) * vec2(rhy(time - dt * .3, dt), rhy(time - dt * .5, dt));   
+}
+
+// FM音源。ボーーーーンという音
+float fm_test(float time) {
+    return sin(1000. * time + sin(300. * time));
+}
+
+float fm(float time, float f, float fm, float amp) {
+    return sin(TAU * f * time + amp * sin(TAU * fm * time));
+}
+
+float saw(float phase) {
+    return 2. * fract(phase) - 1.;
+}
+
+float square(float phase) {
+    return fract(phase) < .5 ? -1. : 1.;
+}
+
+float triangle(float phase) {
+    return 1. - 4. * abs(fract(phase) - .5);
+}
+
+float kick(float note, float time) {
+    // float amp = exp(-5. * time);
+    // float phase = 50. * time - 10. * exp(-70. * time);
+    // return amp * sine(phase);
+    
+    float amp = exp(-3.2 * time);
+    float phase = 35. * time - 16. * exp(-60. * time);
+    return amp * sine(phase);
+}
+
+vec2 hihat1(float note, float time) {
+    float amp = exp(-50. * time);
+    return amp * noise(time * 100.).xy;
+}
+
+vec2 hihat2(float note, float time) {
+    float amp = exp(-70. * time);
+    return amp * noise(time * 300.).xy;
+}
+
+vec2 snare(float note, float t) {
+    float i = t * uSampleRate;
+    float env = exp(-t * 17.);
+    float v = .3 * env * (2.3 * noise2(i) + .5 * sin(30. * i));
+    return vec2(v);
+}
+
+vec2 snareFill(float note, float t) {
+    float i = t * uSampleRate;
+    float env = exp(-t * 30.);
+    float v = .2 * env * (2.3 * noise2(i) + .5 * sin(30. * i));
+    return vec2(v);
+}
+
+vec2 crash1(float note, float time) {
+    float aa = 15.;
+    time = sqrt(time * aa) / aa;
+    float amp = exp(max(time - .15, 0.) * -5.);
+    float v = nse(quan(mod(time, .6), .0001));
+    v = dist(v, .1) * amp;
+    return vec2(dist(v * amp, 2.));
+}
+
+vec2 bass(float note, float time) {
+    float freq = noteToFreq(note);
+    return vec2(square(freq * time) + sine(freq * time)) / 2.;
+}
+
+vec2 pad(float note, float time) {
+    float freq = noteToFreq(note);
+    float vib = .2 * sine(3. * time);
+    return vec2(
+        saw(freq * .99 * time + vib),
+        saw(freq * 1.01 * time + vib)
+    );
+}
+
+vec2 arp(float note, float time) {
+    float freq = noteToFreq(note);
+    float fmamp = .1 * exp(-50. * time);
+    float fm = fmamp * sine(time * freq * 7.);
+    // float amp = exp(-20. * time);
+    float amp = exp(-20. * time);
+    return amp * vec2(
+        sine(freq * .99 * time + fm),
+        sine(freq * 1.01 * time + fm)
+    );
+}
+
+// notes ... [note_number, note_number, ...]
+// beatLength ... 小節がいくつあるか
+    // float divNum = beatTempo / B4; /* 4小節が基準 */
+    // float beat = mod(timeToBeat(time), 1.);
+    // float beat = mod(timeToBeat(time * divNum), beatTempo * beatLength);
+#define SEQUENCER(rawBeat, time, beatTempo, beatLength, notes, toneFunc) \
+    float localBeat = mod(rawBeat, 4.); \
+    float beatIndex = floor(localBeat * 2.); \
+    float noteNumber = notes[int(beatIndex)]; \
+    float localTime = beatToTime(mod(localBeat, 1. / 2.)); \
+    vec2 res = vec2(toneFunc(noteNumber, localTime)) * (noteNumber > 0. ? 1. : 0.);
+
+vec2 arpSeqB4(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 0., 65., 0.,
+        65., 65., 65., 0.
+    );
+    SEQUENCER(rawBeat, time, B4, 2., notes, arp);
+    return res;
+}
+    
+vec2 arpSeqB8(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 0., 65., 0.,
+        65., 0., 65., 0.,
+        65., 0., 65., 65.,
+        65., 0., 65., 65.
+    );
+    SEQUENCER(rawBeat, time, B8, 2., notes, arp);
+    return res;
+}
+
+vec2 arpSeqB16(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 0., 65., 0., 65., 0., 65., 0.,
+        65., 0., 65., 0., 65., 0., 65., 0.,
+        65., 65., 0., 0., 65., 65., 0., 0.,
+        65., 65., 65., 0., 65., 65., 65., 0.
+    );
+    SEQUENCER(rawBeat, time, B16, 2., notes, arp);
+    return res;
+}
+
+vec2 hihat2SeqB8(float rawBeat, float time) {
+    float[] notes = float[](
+        1., 1., 1., 1.,
+        1., 1., 1., 1.
+    );
+    SEQUENCER(rawBeat, time, B8, 1., notes, hihat2);
+    return res;
+}
+
+vec2 kickSeqB16(float rawBeat, float time) {
+    float[] notes = float[](
+        1., 0., 0., 0., 1., 0., 0., 0.,
+        1., 0., 1., 0., 1., 0., 0., 0.,
+        1., 0., 0., 0., 1., 0., 0., 1.,
+        1., 0., 1., 0., 1., 0., 0., 0.
+    );
+    SEQUENCER(rawBeat, time, B16, 2., notes, kick);
+    return res;
+}
+
+// ステレオ出力のためvec2
+vec2 mainSound(float time) {
+    float beat = timeToBeat(time);
+    
+    vec2 sound = vec2(0.);
+    
+    // sound += pad(40., time) * exp(-4. * mod(beatToTime(beat), 4.));
+    float t = beatToTime(mod(beat, 8.));
+    
+    // bu-n
+    // sound += sin(500. * t + sin(100. * t)) * exp(-2. * t);
+    
+    // sound += hihat2SeqB8(beat, time);
+    // sound += kickSeqB16(beat, time);
+    // return vec2(kick(1., beatToTime(mod(timeToBeat(time), 1. / 1.))));
+    
+    // return arpSeqB16(beat, time);
+    // return arpSeqB8(beat, time);
+    return arpSeqB4(beat, time);
+
+	return sound;
+}
+
+void main() {
+    float time = uBlockOffset + float(gl_VertexID) / uSampleRate;
+    vSound = mainSound(time);
+}
+
+`;
+
+    const fragmentShaderText = `#version 300 es
+    
+void main() {}
+`;
+
+    const DURATION = 180; // sec
+    const SAMPLES = 48000;
+
+    const createShader = (gl, src, type) => {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, src);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error(gl.getShaderInfoLog(shader));
+            return;
+        }
+        return shader;
+    };
+
+    const createTransformFeedbackProgram = (gl, vertexShaderText, fragmentShaderText, varyings) => {
+        const program = gl.createProgram();
+        gl.attachShader(program, createShader(gl, vertexShaderText, gl.VERTEX_SHADER));
+        gl.attachShader(program, createShader(gl, fragmentShaderText, gl.FRAGMENT_SHADER));
+        gl.transformFeedbackVaryings(program, varyings, gl.SEPARATE_ATTRIBS);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            console.error(gl.getProgramInfoLog(program));
+            return;
+        }
+        return program;
+    };
+
+    const getUniformLocations = (gl, program, names) => {
+        const locations = {};
+        for (let i = 0; i < names.length; i++) {
+            locations[names[i]] = gl.getUniformLocation(program, names[i]);
+        }
+        return locations;
+    };
+
+    const createVBO = (gl, data, usage = gl.STATIC_DRAW) => {
+        const vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, data, usage);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        return vbo;
+    };
+
+    // const createVAO = (gl, attributes) => {
+    //     const vao = gl.createVertexArray();
+    //     gl.bindVertexArray(vao);
+    //     attributes.forEach(({data, usage, location, size}) => {
+    //         const vbo = createVBO(gl, data, usage, false);
+    //         gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0); // dataはfloat32array前提
+    //         gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    //     });
+    //     gl.bindVertexArray(null)
+    //     return vao;
+    // }
+
+    const start = () => {
+        const audioContext = new AudioContext();
+        const audioBuffer = audioContext.createBuffer(2, audioContext.sampleRate * DURATION, audioContext.sampleRate);
+
+        const canvas = document.createElement("canvas");
+        const gl = canvas.getContext("webgl2");
+        canvas.width = 512;
+        canvas.height = 512;
+
+        const program = createTransformFeedbackProgram(gl, vertexShaderText, fragmentShaderText, ["vSound"]);
+        const uniformLocations = getUniformLocations(gl, program, ["uBlockOffset", "uSampleRate"]);
+
+        const array = new Float32Array(2 * SAMPLES); // L,Rのため2倍
+        // const vao = createVAO(gl, [
+        //     {
+        //         location: 0,
+        //         data: array,
+        //         usage: gl.DYNAMIC_COPY,
+        //         size: 3
+        //     }
+        // ]);
+        const vbo = createVBO(gl, array, gl.DYNAMIC_COPY);
+
+        const transformFeedback = gl.createTransformFeedback();
+
+        // transform feedback 1回ごとに更新するサンプル数がSAMPLEなので、それを何回実行するかの数
+        const numBlocks = Math.ceil((audioContext.sampleRate * DURATION) / SAMPLES);
+
+        const outputL = audioBuffer.getChannelData(0);
+        const outputR = audioBuffer.getChannelData(1);
+
+        console.log("sampleRate", audioContext.sampleRate);
+        console.log("duration[sec]", DURATION);
+        console.log("samples", SAMPLES);
+        console.log("numBlocks", numBlocks);
+        console.log("outputL len", outputL.length);
+        console.log("outputR len", outputR.length);
+
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback);
+
+        gl.enable(gl.RASTERIZER_DISCARD);
+
+        gl.useProgram(program);
+
+        gl.uniform1f(uniformLocations["uSampleRate"], audioContext.sampleRate);
+
+        for (let i = 0; i < numBlocks; i++) {
+            const blockOffset = i * SAMPLES / audioContext.sampleRate;
+            gl.uniform1f(uniformLocations["uBlockOffset"], blockOffset);
+            gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, vbo);
+            gl.beginTransformFeedback(gl.POINTS);
+            gl.drawArrays(gl.POINTS, 0, SAMPLES);
+            gl.endTransformFeedback();
+            gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER, 0, array);
+
+            for (let j = 0; j < SAMPLES; j++) {
+                // ステレオのため
+                // シェーダーの出力はvec2で、xがL, yがR
+                outputL[i * SAMPLES + j] = array[j * 2];
+                outputR[i * SAMPLES + j] = array[j * 2 + 1];
+            }
+        }
+
+        gl.disable(gl.RASTERIZER_DISCARD);
+        
+
+        const node = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+       
+        // 音量調整
+        gainNode.connect(audioContext.destination);
+        gainNode.gain.value = 0.2;
+        
+        node.connect(gainNode);
+        node.buffer = audioBuffer;
+        node.loop = false;
+
+        node.start(0);
+
+        return node;
+    };
+
+    let isStarted = false;
+    document.addEventListener("click", () => {
+        if (!isStarted) {
+            console.log("start");
+            start();
+        }
+        isStarted = true;
+    });
+
+</script>
+</body>
+</html>

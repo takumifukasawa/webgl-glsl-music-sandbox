@@ -82,6 +82,7 @@ float dist(float s, float d) {
     return clamp(s * d, -1., 1.);
 }
 
+// time[sec]
 float timeToBeat(float time) {
     return time / 60. * BPM;
 }
@@ -225,20 +226,31 @@ vec2 arp(float note, float time) {
 #define B16 16.
 
 #define SEQUENCER(rawBeat, time, beatLen, notes, toneFunc) \
-    float beat = mod(rawBeat * (beatLen / B8), beatLen); \
+    float divNum = beatLen / B8; \
+    float beat = mod(timeToBeat(time * divNum), beatLen); \
     float beatIndex = floor(beat); \
     float beatV = fract(beat / beatLen); \
     float note = notes[int(beatIndex)]; \
-    vec2 res = vec2(toneFunc(note, fract(beat))) * step(.0001, note);
+    float localTime = beatToTime(mod(beat, 1.)) / divNum; \
+    vec2 res = vec2(toneFunc(note, localTime)) * (note > 0. ? 1. : 0.);
     
 vec2 padSeqB8(float rawBeat, float time) {
     float[] notes = float[](
-        65., 0., 65., 65.,
-        0., 65., 65., 65.
+        65., 0., 65., 0.,
+        65., 0., 65., 65.
     );
     SEQUENCER(rawBeat, time, B8, notes, kick);
     return res;
 }
+
+// vec2 padSeq(float rawBeat, float time) {
+//     float[] notes = float[](
+//         O(65.), F(0., .65), O(65.), O(65.),
+//         O(0.), O(65.), O(65.), O(65.)
+//     );
+//     SEQUENCER(rawBeat, time, B8, notes, kick);
+//     return res;
+// }
 
 vec2 padSeqB16(float rawBeat, float time) {
     float[] notes = float[](
@@ -252,17 +264,18 @@ vec2 padSeqB16(float rawBeat, float time) {
 // ステレオ出力のためvec2
 vec2 mainSound(float time) {
     // time = mod(time, 180.);
-
-    float kickTime = mod(timeToBeat(time), 1.);
+    float beat = timeToBeat(time);
+    
+    float kickTime = beatToTime(mod(beat, 1.));
     // return vec2(kick(65., kickTime));
     
-    float beat = timeToBeat(time);
     float beatE = timeToBeat(time * 2.);
     
     // float[] notes = float[](1., 0., 1., 0., 1., 0., 1., 1.);
     // vec2 f = sequencer(mod(beat, 8.), time, 8., notes);
     // return f;
     
+    return padSeqB16(beat, time);
     return padSeqB8(beat, time);
 
     vec2 s1 = vec2(sine(440., time)) * exp(-6. * fract(beat));
@@ -324,10 +337,10 @@ vec2 mainSound(float time) {
     
     float sideChain = smoothstep(0., .4, kickTime);
     
-    float hihat1Time = timeToBeat(time);
-    sound += hihat1(mod(hihat1Time, 1.));
-    float hihat2Time = timeToBeat(time);
-    sound += hihat2(mod(hihat2Time, 1.));
+    float hihat1Time = beatToTime(mod(beat, 1.));
+    sound += hihat1(hihat1Time);
+    float hihat2Time = beatToTime(mod(beat, 1.));
+    sound += hihat2(hihat2Time);
     
     float bassNote = chord(0.) - 24.;
     sound += sideChain * .6 * bass(bassNote, time);
@@ -350,7 +363,7 @@ vec2 mainSound(float time) {
     // check sounds
     //
 
-    sound = snareFill(chord(0.), mod(timeToBeat(time), 1.));
+    // sound = snareFill(chord(0.), mod(beatToTime(beat), 1.));
     
     //
     //

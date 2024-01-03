@@ -278,7 +278,7 @@ vec2 arp(float note, float time) {
 //     vec2 res = vec2(toneFunc(noteNumber, localTime, min(1., noteLength))) * (noteNumber > 0. ? 1. : 0.);
 //
 //
-// vec2 padSeqB4(float rawBeat, float time) {
+// vec2 arpSeqB4(float rawBeat, float time) {
 //     float[] notes = float[](
 //         N(65.), E(0.), N(65.), N(0.),
 //         N(65.), N(65.), N(65.), N(0.)
@@ -287,7 +287,7 @@ vec2 arp(float note, float time) {
 //     return res;
 // }
 //     
-// vec2 padSeqB8(float rawBeat, float time) {
+// vec2 arpSeqB8(float rawBeat, float time) {
 //     float[] notes = float[](
 //         // 65., 0., 65., 0.,
 //         // 65., 0., 65., 65.
@@ -300,7 +300,7 @@ vec2 arp(float note, float time) {
 //     return res;
 // }
 // 
-// vec2 padSeqB16(float rawBeat, float time) {
+// vec2 arpSeqB16(float rawBeat, float time) {
 //     // float[] notes = float[](
 //     //     65., 65., 65., 0., 0., 65., 65., 65.,
 //     //     65., 65., 0., 65., 0., 65., 65., 65.
@@ -327,7 +327,7 @@ vec2 arp(float note, float time) {
     float localTime = beatToTime(mod(beat, 1.)) / divNum; \
     vec2 res = vec2(toneFunc(noteNumber, localTime)) * (noteNumber > 0. ? 1. : 0.);
 
-vec2 padSeqB4(float rawBeat, float time) {
+vec2 arpSeqB4(float rawBeat, float time) {
     float[] notes = float[](
         65., 0., 65., 0.,
         65., 65., 65., 0.
@@ -336,7 +336,7 @@ vec2 padSeqB4(float rawBeat, float time) {
     return res;
 }
     
-vec2 padSeqB8(float rawBeat, float time) {
+vec2 arpSeqB8(float rawBeat, float time) {
     float[] notes = float[](
         65., 0., 65., 0.,
         65., 0., 65., 0.,
@@ -347,7 +347,7 @@ vec2 padSeqB8(float rawBeat, float time) {
     return res;
 }
 
-vec2 padSeqB16(float rawBeat, float time) {
+vec2 arpSeqB16(float rawBeat, float time) {
     float[] notes = float[](
         65., 0., 65., 0., 65., 0., 65., 0.,
         65., 0., 65., 0., 65., 0., 65., 0.,
@@ -373,9 +373,9 @@ vec2 mainSound(float time) {
     // vec2 f = sequencer(mod(beat, 8.), time, 8., notes);
     // return f;
     
-    return padSeqB16(beat, time);
-    // return padSeqB8(beat, time);
-    // return padSeqB4(beat, time);
+    // return arpSeqB16(beat, time);
+    // return arpSeqB8(beat, time);
+    // return arpSeqB4(beat, time);
 
     vec2 s1 = vec2(sine(440., time)) * exp(-6. * fract(beat));
     vec2 s2 = vec2(sine(440., time)) * exp(-6. * fract(beatE));

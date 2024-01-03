@@ -22,7 +22,7 @@ uniform float uSampleRate;
 
 out vec2 vSound;
 
-#define BPM 120.0
+#define BPM 100.0
 #define PI 3.1415
 #define TAU 6.2831
  
@@ -156,6 +156,10 @@ float triangle(float phase) {
     return 1. - 4. * abs(fract(phase) - .5);
 }
 
+//
+// drums
+//
+
 float kick(float note, float time) {
     // float amp = exp(-5. * time);
     // float phase = 50. * time - 10. * exp(-70. * time);
@@ -164,6 +168,13 @@ float kick(float note, float time) {
     float amp = exp(-3.2 * time);
     float phase = 35. * time - 16. * exp(-60. * time);
     return amp * sine(phase);
+}
+
+vec2 kickAttack(float note, float t) {
+    float i = t * uSampleRate;
+    float env = exp(-t * 28.);
+    float v = .5 * env * (.7 * noise2(i) + .38 * sin(45. * i));
+    return vec2(v);
 }
 
 vec2 hihat1(float note, float time) {
@@ -199,6 +210,10 @@ vec2 crash1(float note, float time) {
     return vec2(dist(v * amp, 2.));
 }
 
+//
+// synthesizer
+//
+
 vec2 bass(float note, float time) {
     float freq = noteToFreq(note);
     return vec2(square(freq * time) + sine(freq * time)) / 2.;
@@ -226,6 +241,7 @@ vec2 arp(float note, float time) {
 }
 
 //
+// electric piano
 // ref: https://www.shadertoy.com/view/3scfD2
 //
 
@@ -303,8 +319,10 @@ vec2 epiano(float note, float t)
 
 vec2 arpSeqB4(float rawBeat, float time) {
     float[] notes = float[](
-        65., 0., 65., 0.,
-        65., 65., 65., 0.
+        65., 0.,
+        65., 0.,
+        65., 65.,
+        65., 0.
     );
     SEQUENCER(rawBeat, time, B4, 4., notes, arp);
     return res;
@@ -312,21 +330,35 @@ vec2 arpSeqB4(float rawBeat, float time) {
  
 vec2 arpSeqB8(float rawBeat, float time) {
     float[] notes = float[](
-        65., 0., 65., 0., 65., 65., 65., 0.,
-        65., 65., 65., 0., 65., 65., 65., 0.
+        65., 0., 65., 0.,
+        65., 65., 65., 0.,
+        65., 65., 65., 0.,
+        65., 65., 65., 0.
     );
-    SEQUENCER(rawBeat, time, B8, 4., notes, kick);
+    SEQUENCER(rawBeat, time, B8, 4., notes, arp);
     return res;
 }
     
 vec2 arpSeqB16(float rawBeat, float time) {
     float[] notes = float[](
-        65., 0., 65., 0., 65., 0., 65., 0., 65., 0., 65., 65., 65., 0., 65., 65.,
-        65., 0., 65., 0., 65., 0., 65., 0., 65., 0., 65., 65., 65., 0., 65., 65.
+        65., 0., 65., 0., 65., 0., 65., 0.,
+        65., 0., 65., 65., 65., 0., 65., 65.,
+        65., 0., 65., 0., 65., 0., 65., 0.,
+        65., 0., 65., 65., 65., 0., 65., 65.
     );
     SEQUENCER(rawBeat, time, B16, 4., notes, arp);
     return res;
 }
+
+// vec2 kickSeqB16(float rawBeat, float time) {
+//     float[] notes = float[](
+//         1., 0., 0., 0., 1., 0., 0., 0.,
+//         1., 0., 1., 0., 1., 0., 0., 0.,
+//         1., 0., 0., 0., 1., 0., 0., 1.,
+//         1., 0., 1., 0., 1., 0., 0., 0.
+//     );
+//     SEQUENCER(rawBeat, time, B16, 4., notes, kick);
+// }
 
 vec2 pianoSeqB4(float rawBeat, float time) {
     float[] notes = float[](
@@ -343,18 +375,40 @@ vec2 hihat2SeqB8(float rawBeat, float time) {
         1., 1., 1., 1.,
         1., 1., 1., 1.
     );
-    SEQUENCER(rawBeat, time, B8, 1., notes, hihat2);
+    SEQUENCER(rawBeat, time, B8, 2., notes, hihat2);
+    return res;
+}
+
+vec2 kickSeqB4(float rawBeat, float time) {
+    float[] notes = float[](
+        1., 1.,
+        1., 1.,
+        1., 1.,
+        1., 1.
+    );
+    SEQUENCER(rawBeat, time, B4, 4., notes, kick);
     return res;
 }
 
 vec2 kickSeqB16(float rawBeat, float time) {
     float[] notes = float[](
-        1., 0., 0., 0., 1., 0., 0., 0.,
-        1., 0., 1., 0., 1., 0., 0., 0.,
-        1., 0., 0., 0., 1., 0., 0., 1.,
-        1., 0., 1., 0., 1., 0., 0., 0.
+        0., 0., 0., 0., 0., 0., 0., 0.,
+        0., 0., 1., 0., 0., 0., 0., 0.,
+        0., 0., 0., 0., 0., 0., 0., 1.,
+        0., 0., 1., 0., 0., 0., 0., 0.
     );
-    SEQUENCER(rawBeat, time, B16, 2., notes, kick);
+    SEQUENCER(rawBeat, time, B16, 4., notes, kick);
+    return res;
+}
+
+vec2 snareFillSeqB4(float rawBeat, float time) {
+    float[] notes = float[](
+        0., 1.,
+        0., 1.,
+        0., 1.,
+        0., 1.
+    );
+    SEQUENCER(rawBeat, time, B4, 4., notes, snareFill);
     return res;
 }
 
@@ -370,18 +424,30 @@ float phase(float beat, float inMeasure, float outMeasure) {
 // ステレオ出力のためvec2
 vec2 mainSound(float time) {
     float beat = timeToBeat(time);
+   
+    // for debug 
+    // return snare(1., beatToTime(mod(beat, 1.)));
+    // return snareFill(1., beatToTime(mod(beat, 1.)));
+    // return hihat2(1., beatToTime(mod(beat, 1.)));
+    // return vec2(kick(1., beatToTime(mod(beat, 1.))));
     
     vec2 sound = vec2(0.);
     
     float phase0 = phase(beat, 0., 4.);
     float phase1 = phase(beat, 4., 8.);
-    return
-        pianoSeqB4(beat, time) * phase0
-        + arpSeqB8(beat, time) * phase1;
-    
-    
-    // bu-n
-    // sound += sin(500. * t + sin(100. * t)) * exp(-2. * t);
+    sound +=
+        // hihat2SeqB8(beat, time)
+        kickSeqB4(beat, time)
+        + kickSeqB16(beat, time);
+        // + snareFillSeqB4(beat, time); 
+        // + pianoSeqB4(beat, time) * phase0
+        // + arpSeqB8(beat, time) * phase1;
+   
+   
+    // baseっぽい感じ
+    float b = 440.;
+    float br = 1.;
+    // sound += sin(b * beatToTime(beat) + sin(b * br * beatToTime(beat))) * exp(-2. * beatToTime(mod(beat, 2.)));
     
     // sound += hihat2SeqB8(beat, time);
     // sound += kickSeqB16(beat, time);
@@ -390,7 +456,7 @@ vec2 mainSound(float time) {
     // return arpSeqB16(beat, time);
     // return arpSeqB8(beat, time);
     // return arpSeqB4(beat, time);
-    return pianoSeqB4(beat, time);
+    // return pianoSeqB4(beat, time);
 
 	return sound;
 }

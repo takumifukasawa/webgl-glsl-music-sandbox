@@ -22,14 +22,124 @@ uniform float uSampleRate;
 
 out vec2 vSound;
 
-#define BPM 100.0
+#define BPM 125.
 #define PI 3.1415
 #define TAU 6.2831
  
+#define B2 2.
 #define B4 4.
 #define B8 8.
 #define B16 16.
 #define B32 32.
+
+// Gm7
+// G3, B#4, D4, F4
+// 55., 58., 62., 65.
+
+/*
+MIDI Number,Note Name,Frequency
+21,A0,27.5
+22,A#0,29.14
+23,B0,30.87
+24,C1,32.7
+25,C#1,34.65
+26,D1,36.71
+27,D#1,38.89
+28,E1,41.2
+29,F1,43.65
+30,F#1,46.25
+31,G1,49.0
+32,G#1,51.91
+33,A1,55.0
+34,A#1,58.27
+35,B1,61.74
+36,C2,65.41
+37,C#2,69.3
+38,D2,73.42
+39,D#2,77.78
+40,E2,82.41
+41,F2,87.31
+42,F#2,92.5
+43,G2,98.0
+44,G#2,103.83
+45,A2,110.0
+46,A#2,116.54
+47,B2,123.47
+48,C3,130.81
+49,C#3,138.59
+50,D3,146.83
+51,D#3,155.56
+52,E3,164.81
+53,F3,174.61
+54,F#3,185.0
+55,G3,196.0
+56,G#3,207.65
+57,A3,220.0
+58,A#3,233.08
+59,B3,246.94
+60,C4,261.63
+61,C#4,277.18
+62,D4,293.66
+63,D#4,311.13
+64,E4,329.63
+65,F4,349.23
+66,F#4,369.99
+67,G4,392.0
+68,G#4,415.3
+69,A4,440.0
+70,A#4,466.16
+71,B4,493.88
+72,C5,523.25
+73,C#5,554.37
+74,D5,587.33
+75,D#5,622.25
+76,E5,659.26
+77,F5,698.46
+78,F#5,739.99
+79,G5,783.99
+80,G#5,830.61
+81,A5,880.0
+82,A#5,932.33
+83,B5,987.77
+84,C6,1046.5
+85,C#6,1108.73
+86,D6,1174.66
+87,D#6,1244.51
+88,E6,1318.51
+89,F6,1396.91
+90,F#6,1479.98
+91,G6,1567.98
+92,G#6,1661.22
+93,A6,1760.0
+94,A#6,1864.66
+95,B6,1975.53
+96,C7,2093.0
+97,C#7,2217.46
+98,D7,2349.32
+99,D#7,2489.02
+100,E7,2637.02
+101,F7,2793.83
+102,F#7,2959.96
+103,G7,3135.96
+104,G#7,3322.44
+105,A7,3520.0
+106,A#7,3729.31
+107,B7,3951.07
+108,C8,4186.01
+*/
+
+float chord(float n) {
+    if(n < 1.) {
+        return 0.;
+    }
+    return (
+        n < 2. ? 55. :
+        n < 3. ? 58. :
+        n < 4. ? 62. :
+                 65.
+    );
+}
+
 
 // -----------
 // noise
@@ -105,18 +215,6 @@ float beatToTime(float beat) {
 // https://www.inspiredacoustics.com/en/MIDI_note_numbers_and_center_frequencies
 float noteToFreq(float n) {
     return 440. * pow(2., (n - 69.) / 12.);
-}
-
-float chord(float n) {
-    if(n < 1.) {
-        return 0.;
-    }
-    return (
-        n < 2. ? 55. :
-        n < 3. ? 58. :
-        n < 4. ? 62. :
-                 65.
-    );
 }
 
 float sine(float freq, float time) {
@@ -330,12 +428,12 @@ vec2 arpSeqB4(float rawBeat, float time) {
  
 vec2 arpSeqB8(float rawBeat, float time) {
     float[] notes = float[](
-        65., 0., 65., 0.,
-        65., 65., 65., 0.,
-        65., 65., 65., 0.,
-        65., 65., 65., 0.
+        65., 0., 55., 0.,   65., 55., 55., 0.,
+        65., 55., 55., 0.,  65., 55., 55., 0.,
+        65., 0., 55., 0.,   65., 55., 55., 0.,
+        65., 55., 55., 0.,  65., 55., 55., 0.
     );
-    SEQUENCER(rawBeat, time, B8, 4., notes, arp);
+    SEQUENCER(rawBeat, time, B16, 4., notes, arp);
     return res;
 }
     
@@ -362,11 +460,13 @@ vec2 arpSeqB16(float rawBeat, float time) {
 
 vec2 pianoSeqB4(float rawBeat, float time) {
     float[] notes = float[](
-        65., 0., 60., 0.,
-        65., 60., 65., 0.
+        62.,
+        55.,
+        0.,
+        0.
     );
-    SEQUENCER(rawBeat, time, B4, 4., notes, epiano);
-    res *= 4.; // adjust volume
+    SEQUENCER(rawBeat, time, B2, 4., notes, epiano);
+    res *= 10.; // adjust volume
     return res;
 }
 
@@ -392,10 +492,10 @@ vec2 kickSeqB4(float rawBeat, float time) {
 
 vec2 kickSeqB16(float rawBeat, float time) {
     float[] notes = float[](
-        0., 0., 0., 0., 0., 0., 0., 0.,
-        0., 0., 1., 0., 0., 0., 0., 0.,
-        0., 0., 0., 0., 0., 0., 0., 1.,
-        0., 0., 1., 0., 0., 0., 0., 0.
+        1., 0., 0., 0., 1., 0., 0., 0.,
+        1., 0., 1., 0., 1., 0., 0., 0.,
+        1., 0., 0., 0., 1., 0., 0., 1.,
+        1., 0., 1., 0., 1., 0., 0., 0.
     );
     SEQUENCER(rawBeat, time, B16, 4., notes, kick);
     return res;
@@ -436,13 +536,12 @@ vec2 mainSound(float time) {
     float phase0 = phase(beat, 0., 4.);
     float phase1 = phase(beat, 4., 8.);
     sound +=
-        // hihat2SeqB8(beat, time)
-        kickSeqB4(beat, time)
-        + kickSeqB16(beat, time);
-        // + snareFillSeqB4(beat, time); 
-        // + pianoSeqB4(beat, time) * phase0
-        // + arpSeqB8(beat, time) * phase1;
-   
+        hihat2SeqB8(beat, time)
+        + kickSeqB4(beat, time)
+        + kickSeqB16(beat, time)
+        + snareFillSeqB4(beat, time)
+        + pianoSeqB4(beat, time);
+        // + arpSeqB8(beat, time);
    
     // baseっぽい感じ
     float b = 440.;

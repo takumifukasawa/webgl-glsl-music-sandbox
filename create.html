@@ -223,6 +223,53 @@ vec2 arp(float note, float time) {
     );
 }
 
+//
+// ref: https://www.shadertoy.com/view/3scfD2
+//
+
+#define msin(x,m) sin(TAU*(x)+(m))
+
+float cps(float notenumber)
+{
+    // Convert from MIDI note number to cycles per second
+    return 440.*exp2((notenumber-69.)/12.);
+}
+
+vec2 epiano(float note, float t)
+{
+    float nuance = 1.;
+
+    float freq = cps(note);
+
+    // freq : frequency of note
+    // t : time since beginning of note
+    // nuance : 1 is mezzo-forte, smaller is piano, larger is forte
+    vec2 f0 = vec2(freq*0.998, freq*1.002);
+    
+    // Glassy attack : slightly sharp,
+    // modulated at 14 * base frequency with a sharply decaying envelope
+    // and with a relatively fast decay
+    vec2 glass = msin((f0+3.)*t, msin(14.*f0*t,0.) * exp(-30.*t) * nuance) * exp(-4.*t)  * nuance;
+    glass = sin(glass); // Distort at high nuances
+    
+    // Body of the sound : perfectly in tune,
+    // index of modulation depends on nuance and is boosted a bit for low notes
+    vec2 body = msin(f0*t, msin(f0*t,0.) * exp(-0.5*t) * nuance * pow(440./f0.x, 0.5)) * exp(-t) * nuance;
+    
+    // Pan the attack depending on which note it is
+    float panDir = clamp(log2(freq/400.)/2., -1., 1.); // -1 is left, 1 is right
+    vec2 pan = normalize(vec2(0.5-0.5*panDir, 0.5+0.5*panDir));
+    return (glass*pan + body) * 0.05 * smoothstep(0.,0.001,t);
+}
+
+
+
+
+//
+//
+//
+
+
 // notes ... [note_number, note_number, ...]
 // measureCount ... 小節数. 2ビートで1小節
 #define SEQUENCER(rawBeat, time, beatTempo, measureCount, notes, toneFunc) \
@@ -261,6 +308,16 @@ vec2 arpSeqB16(float rawBeat, float time) {
     return res;
 }
 
+vec2 pianoSeqB4(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 0., 60., 0.,
+        65., 60., 65., 0.
+    );
+    SEQUENCER(rawBeat, time, B4, 4., notes, epiano);
+    res *= 4.;
+    return res;
+}
+
 // vec2 hihat2SeqB8(float rawBeat, float time) {
 //     float[] notes = float[](
 //         1., 1., 1., 1.,
@@ -287,6 +344,11 @@ vec2 mainSound(float time) {
     
     vec2 sound = vec2(0.);
     
+    float delta = 1.;
+    float it = floor(time / delta);
+    float nu = 1.;
+    // return epiano(69., mod(beatToTime(beat), .5));
+    
     // sound += pad(40., time) * exp(-4. * mod(beatToTime(beat), 4.));
     float t = beatToTime(mod(beat, 8.));
     
@@ -298,8 +360,9 @@ vec2 mainSound(float time) {
     // return vec2(kick(1., beatToTime(mod(timeToBeat(time), 1. / 1.))));
     
     // return arpSeqB16(beat, time);
-    return arpSeqB8(beat, time);
+    // return arpSeqB8(beat, time);
     // return arpSeqB4(beat, time);
+    return pianoSeqB4(beat, time);
 
 	return sound;
 }

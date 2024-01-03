@@ -301,32 +301,32 @@ vec2 epiano(float note, float t)
     float fallbackAmp = (1. - smoothstep(.9, .99, fract(localBeat * indexOffset))); /* ぶつ切りにならないようなfallback */ \
     vec2 res = vec2(toneFunc(noteNumber, localTime)) * (noteNumber > 0. ? 1. : 0.) * fallbackAmp; \
 
-// vec2 arpSeqB4(float rawBeat, float time) {
-//     float[] notes = float[](
-//         65., 0., 65., 0.,
-//         65., 65., 65., 0.
-//     );
-//     SEQUENCER(rawBeat, time, B4, 4., notes, arp);
-//     return res;
-// }
-//  
-// vec2 arpSeqB8(float rawBeat, float time) {
-//     float[] notes = float[](
-//         65., 0., 65., 0., 65., 65., 65., 0.,
-//         65., 65., 65., 0., 65., 65., 65., 0.
-//     );
-//     SEQUENCER(rawBeat, time, B8, 4., notes, kick);
-//     return res;
-// }
-//     
-// vec2 arpSeqB16(float rawBeat, float time) {
-//     float[] notes = float[](
-//         65., 0., 65., 0., 65., 0., 65., 0., 65., 0., 65., 65., 65., 0., 65., 65.,
-//         65., 0., 65., 0., 65., 0., 65., 0., 65., 0., 65., 65., 65., 0., 65., 65.
-//     );
-//     SEQUENCER(rawBeat, time, B16, 4., notes, arp);
-//     return res;
-// }
+vec2 arpSeqB4(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 0., 65., 0.,
+        65., 65., 65., 0.
+    );
+    SEQUENCER(rawBeat, time, B4, 4., notes, arp);
+    return res;
+}
+ 
+vec2 arpSeqB8(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 0., 65., 0., 65., 65., 65., 0.,
+        65., 65., 65., 0., 65., 65., 65., 0.
+    );
+    SEQUENCER(rawBeat, time, B8, 4., notes, kick);
+    return res;
+}
+    
+vec2 arpSeqB16(float rawBeat, float time) {
+    float[] notes = float[](
+        65., 0., 65., 0., 65., 0., 65., 0., 65., 0., 65., 65., 65., 0., 65., 65.,
+        65., 0., 65., 0., 65., 0., 65., 0., 65., 0., 65., 65., 65., 0., 65., 65.
+    );
+    SEQUENCER(rawBeat, time, B16, 4., notes, arp);
+    return res;
+}
 
 vec2 pianoSeqB4(float rawBeat, float time) {
     float[] notes = float[](
@@ -374,7 +374,10 @@ vec2 mainSound(float time) {
     vec2 sound = vec2(0.);
     
     float phase0 = phase(beat, 0., 4.);
-    return pianoSeqB4(beat, time) * phase0;
+    float phase1 = phase(beat, 4., 8.);
+    return
+        pianoSeqB4(beat, time) * phase0
+        + arpSeqB8(beat, time) * phase1;
     
     
     // bu-n

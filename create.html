@@ -33,11 +33,11 @@ out vec2 vSound;
 #define T16 16.
 #define T32 32.
 
-#define OCT_ADJ 12
+#define OCT_ADJ 0
 
-#define N2(a, b) (a - OCT_ADJ | (b - OCT_ADJ << 8))
-#define N3(a, b, c) (a - OCT_ADJ | (b - OCT_ADJ << 8) | (c - OCT_ADJ << 16))
-#define N4(a, b, c, d) (a - OCT_ADJ | (b - OCT_ADJ << 8) | (c - OCT_ADJ << 16) | (d - OCT_ADJ << 24))
+#define N2(a, b) (a + OCT_ADJ | (b + OCT_ADJ << 8))
+#define N3(a, b, c) (a + OCT_ADJ | (b + OCT_ADJ << 8) | (c + OCT_ADJ << 16))
+#define N4(a, b, c, d) (a + OCT_ADJ | (b + OCT_ADJ << 8) | (c + OCT_ADJ << 16) | (d + OCT_ADJ << 24))
 
 // #define Gm7 N4(55, 58, 62, 65)
 // #define G2m7 N4(43, 46, 50, 53)
@@ -577,6 +577,11 @@ vec2 epiano(float note, float t)
     float fallbackAmp = (1. - smoothstep(.98, .99, fract(localBeat * indexOffset))); \
     fallbackAmp = 1.; \
     */ \
+    int accRawNoteLength = 0;
+    for(int i = 0; i < noteCount; i++) { \
+        accRawNoteLength += noteLength; \
+        break; \
+    } \
     float fallbackAmp = (1. - smoothstep(.98, .999, fract(localBeat * indexOffset))); /* ぶつ切りにならないようなfallback */ \
     vec2 res = vec2(0.); \
     float acc = 0.; \

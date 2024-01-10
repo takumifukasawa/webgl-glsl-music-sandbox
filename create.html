@@ -558,10 +558,10 @@ vec2 epiano(float note, float t)
 
 // // notes ... [note_number, note_number, ...]
 // notes ... [note_number, len, note_number, len, ...]
-// measureCount ... 小節数. 2ビートで1小節
+// measureCount ... 小節数. 4拍で1小節とする
 // TODO: little-endian, big-endian 考慮
 // ref: https://github.com/equinor/glsl-float-to-rgba/blob/master/README.md
-#define SEQUENCER(rawBeat, time, beatTempo, measureCount, notes, noteCount, toneFunc) \
+#define SEQUENCER(rawBeat, time, beatTempo, totalBeatCount, notes, noteCount, toneFunc) \
     /* \
     WIP: \
     float noteNumber = notes[int(beatIndex * 2.)]; \
@@ -602,15 +602,10 @@ vec2 epiano(float note, float t)
     float gainAcc = 1.5; \
     res /= max(1., acc - gainAcc); \
     */ \
-    float tempoScale = beatTempo / 4.; /* 4拍が基本 */\
-    /* float localBeat = mod(rawBeat, measureCount * 2. * indexOffset); シーケンス内でのビート番号 */ \
-    float localBeat = mod(rawBeat, float(measureCount) * float(beatTempo)); /* シーケンス内でのビート番号 */ \
-    /* float fBeatIndex = floor(localBeat * indexOffset); */ \
-    float fBeatIndex = localBeat; \
-    int beatIndex = int(fBeatIndex); \
-    float timeLengthPerBeat = beatToTime(1. / tempoScale); /* 4拍が基本 */ \
-    /* float localTime = beatToTime(mod(localBeat, 1. / indexOffset)); */ \
-    /* int accRawBeatPrevLength = 0; */ \
+    /* float tempoScale = beatTempo / 4.; 4拍が基本 */\
+    /* float fLocalBeatIndex = mod(rawBeat, float(measureCount) * float(beatTempo)); シーケンス内でのビート番号 */ \
+    float fLocalBeatIndex = mod(rawBeat, float(totalBeatCount)); /* シーケンス内でのビート番号 */ \
+    int accRawBeatPrevLength = 0; \
     int accRawBeatLength = 0; \
     int rawNoteNumber = 0; \
     int rawNoteLength = 0; \
@@ -619,11 +614,13 @@ vec2 epiano(float note, float t)
         rawNoteLength = notes[i * 2 + 1]; \
         int nextRawNoteNumber = notes[(i + 1) * 2]; \
         int nextRawNoteLength = notes[(i + 1) * 2 + 1]; \
-        /* if(beatIndex > accRawBeatLength) { */ \
-        if(float(accRawBeatLength) < localBeat && localBeat < float(accRawBeatLength) + float(nextRawNoteLength)) { \
+        if( \
+            float(accRawBeatLength) - 1. < fLocalBeatIndex \
+            && fLocalBeatIndex < (float(accRawBeatLength) + float(nextRawNoteLength) - 1.) \
+        ) { \
             break; \
         } \
-        /* accRawBeatPrevLength = accRawBeatLength; */ \
+        accRawBeatPrevLength = accRawBeatLength; \
         accRawBeatLength += rawNoteLength; \
     } \
     int[4] noteNumbers = int[4]( \
@@ -633,13 +630,9 @@ vec2 epiano(float note, float t)
         ((int(rawNoteNumber) >> 24) & 255) \
     ); \
     /* ぶつ切りにならないようなfallback */ \
-    /* float fallbackAmp = (1. - smoothstep(.98, .999, fract(localBeat * indexOffset))); */ \
+    /* float fallbackAmp = (1. - smoothstep(.98, .999, fract(fLocalBeatIndex * indexOffset))); */ \
     /* TODO: ここを正しい時間にする。今のbeatのtime + 今のnoteの内過ぎ去った beat の数分の長さのはず */ \
-    /* float localTimeBase = beatToTime(mod(localBeat, 1. / tempoScale)); */ \
-    float localTimeBase = beatToTime(mod(localBeat, float(rawNoteLength))); \
-    /* float localTimeOffset = localTimePerBeat * (float(beatIndex) - float(accRawBeatLength)); */ \
-    /* float localTime = localTimeBase + localTimeOffset; */ \
-    float localTime = localTimeBase; \
+    float localTime = beatToTime(mod(fLocalBeatIndex - float(accRawBeatPrevLength), float(rawNoteLength))); \
     vec2 res = vec2(0.); \
     float acc = 0.; \
     for(int i = 0; i < 4; i++) { \
@@ -699,8 +692,10 @@ vec2 arpSeqBase(float rawBeat, float time) {
         // F(1), D(1), F(1), F(1),
         // F(1), F(1), F(1), F(1)
         
-        HA(1), HG(1), HF(1), HE(1),
-        HD(1), HC(1), HB(1), HA(1)
+        HA(2), O(1), HB(1),
+        HB(1), HB(1), HB(1), HB(1)
+        // HA(2), HF(2),
+        // O(4)
         
         // F(2), F(1), O(1),
         // F(2), F(1), O(1)
@@ -716,8 +711,8 @@ vec2 arpSeqBase(float rawBeat, float time) {
         // Dshm, Dshm, Dshm, Dshm,
         // Csh, Csh, Csh, Csh
     );
-    SEQUENCER(rawBeat, time, T4, 2., notes, 8, arp);
-    return res;
+    SEQUENCER(rawBeat, time, T4, 8., notes, 7, epiano);
+    return res * 3.;
 }
     
 // vec2 arpSeqT16(float rawBeat, float time) {

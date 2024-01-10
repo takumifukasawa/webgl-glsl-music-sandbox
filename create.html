@@ -612,13 +612,19 @@ vec2 epiano(float note, float t)
     for(int i = 0; i < noteCount - 1; i++) { \
         rawNoteNumber = notes[i * 2]; \
         rawNoteLength = notes[i * 2 + 1]; \
-        int nextRawNoteNumber = notes[(i + 1) * 2]; \
-        int nextRawNoteLength = notes[(i + 1) * 2 + 1]; \
-        if( \
-            float(accRawBeatLength) < fLocalBeatIndex \
-            && fLocalBeatIndex < (float(accRawBeatLength) + float(nextRawNoteLength)) \
-        ) { \
-            break; \
+        if(i == 0) { \
+            if(0. < fLocalBeatIndex && fLocalBeatIndex < float(rawNoteLength)) { \
+                break; \
+            } \
+        } else { \
+            int nextRawNoteNumber = notes[(i + 1) * 2]; \
+            int nextRawNoteLength = notes[(i + 1) * 2 + 1]; \
+            if( \
+                float(accRawBeatLength) < fLocalBeatIndex \
+                && fLocalBeatIndex < (float(accRawBeatLength) + float(nextRawNoteLength)) \
+            ) { \
+                break; \
+            } \
         } \
         accRawBeatPrevLength = accRawBeatLength; \
         accRawBeatLength += rawNoteLength; \

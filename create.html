@@ -607,38 +607,49 @@ vec2 epiano(float note, float t)
     float fLocalBeatIndex = mod(rawBeat, float(totalBeatCount)); /* シーケンス内でのビート番号 */ \
     int accRawBeatPrevLength = 0; \
     int accRawBeatLength = 0; \
-    int rawNoteNumber = 0; \
-    int rawNoteLength = 0; \
-    for(int i = 0; i < noteCount - 1; i++) { \
-        rawNoteNumber = notes[i * 2]; \
-        rawNoteLength = notes[i * 2 + 1]; \
+    /* int rawNoteNumber = 0; */ \
+    /* int rawNoteLength = 0; */ \
+    int targetNoteIndex = -1; \
+    for(int i = 0; i < noteCount; i++) { \
         if(i == 0) { \
+            /* rawNoteNumber = notes[i * 2]; */ \
+            int rawNoteLength = notes[i * 2 + 1]; \
             if(0. < fLocalBeatIndex && fLocalBeatIndex < float(rawNoteLength)) { \
+                targetNoteIndex = 0; \
                 break; \
             } \
+            accRawBeatLength += rawNoteLength; \
         } else { \
-            int nextRawNoteNumber = notes[(i + 1) * 2]; \
-            int nextRawNoteLength = notes[(i + 1) * 2 + 1]; \
+            int rawNoteLength = notes[(i - 1) * 2 + 1]; \
+            int nextRawNoteNumber = notes[i * 2]; \
+            int nextRawNoteLength = notes[i * 2 + 1]; \
             if( \
                 float(accRawBeatLength) < fLocalBeatIndex \
                 && fLocalBeatIndex < (float(accRawBeatLength) + float(nextRawNoteLength)) \
             ) { \
+                targetNoteIndex = i; \
                 break; \
             } \
+            accRawBeatPrevLength = accRawBeatLength; \
+            accRawBeatLength += rawNoteLength; \
         } \
-        accRawBeatPrevLength = accRawBeatLength; \
-        accRawBeatLength += rawNoteLength; \
     } \
+    int currentNoteNumber = notes[targetNoteIndex * 2]; \
+    int currentNoteLength = notes[targetNoteIndex * 2 + 1]; \
     int[4] noteNumbers = int[4]( \
-        (int(rawNoteNumber) & 255), \
-        ((int(rawNoteNumber) >> 8) & 255), \
-        ((int(rawNoteNumber) >> 16) & 255), \
-        ((int(rawNoteNumber) >> 24) & 255) \
+        (int(currentNoteNumber) & 255), \
+        ((int(currentNoteNumber) >> 8) & 255), \
+        ((int(currentNoteNumber) >> 16) & 255), \
+        ((int(currentNoteNumber) >> 24) & 255) \
     ); \
-    /* ぶつ切りにならないようなfallback */ \
+    /* TODO: -1 の場合は何かがおかしい. 誤差か何かで発生する */ \
+    if(targetNoteIndex == -1) { \
+        return vec2(0.); \
+    } \
+    /* TODO: ぶつ切りにならないようなfallback */ \
     /* float fallbackAmp = (1. - smoothstep(.98, .999, fract(fLocalBeatIndex * indexOffset))); */ \
     /* TODO: ここを正しい時間にする。今のbeatのtime + 今のnoteの内過ぎ去った beat の数分の長さのはず */ \
-    float localTime = beatToTime(mod(fLocalBeatIndex - float(accRawBeatPrevLength), float(rawNoteLength))); \
+    float localTime = beatToTime(mod(fLocalBeatIndex - float(accRawBeatPrevLength), float(currentNoteLength))); \
     vec2 res = vec2(0.); \
     float acc = 0.; \
     for(int i = 0; i < 4; i++) { \
@@ -698,10 +709,11 @@ vec2 arpSeqBase(float rawBeat, float time) {
         // F(1), D(1), F(1), F(1),
         // F(1), F(1), F(1), F(1)
         
-        HG(2), O(1), HA(1),
-        HE(1), HE(1), HE(1), HE(1)
+        HG(2), HF(2),
+        HA(1), /* TODO: ここに隙間があいて一つずれてる */ HB(1), HC(1), HD(1),
+        HA(1), HB(1), HC(1), HD(1)
         // HA(2), HF(2),
-        // O(4)
+        // HE(1), O(3)
         
         // F(2), F(1), O(1),
         // F(2), F(1), O(1)
@@ -717,7 +729,7 @@ vec2 arpSeqBase(float rawBeat, float time) {
         // Dshm, Dshm, Dshm, Dshm,
         // Csh, Csh, Csh, Csh
     );
-    SEQUENCER(rawBeat, time, T4, 8., notes, 7, epiano);
+    SEQUENCER(rawBeat, time, T4, 12., notes, 10, epiano);
     return res * 3.;
 }
     

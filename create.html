@@ -46,17 +46,27 @@ out vec2 vSound;
 // #define G3 N3(55, 58, 62)
 // #define A3m N3(57, 60, 64)
 // #define B3 N3(59, 63, 66)
+#define O(a) 0, a 
 #define B N3(59, 63, 66)
 #define C N3(60, 64, 67)
 #define Csh N3(61, 65, 68)
-#define D N3(62, 65, 69)
+// #define D N3(62, 65, 69)
+#define D(a) 62, a
 #define Dshm N3(63, 67, 70)
-#define F N3(65, 69, 72)
+// #define F(a) N3(65, 69, 72), a
+#define F(a) 65, a
 #define Fsh N3(66, 70, 73)
 #define Em N3(64, 67, 71)
 #define G N3(67, 71, 74)
 #define Gm7 N4(67, 71, 74, 77)
 #define Am N3(69, 72, 76)
+#define HA(a) 69, a
+#define HG(a) 67, a
+#define HF(a) 65, a
+#define HE(a) 64, a
+#define HD(a) 62, a
+#define HC(a) 60, a
+#define HB(a) 59, a
 
 // Gm7
 // G3, B#4, D4, F4
@@ -546,23 +556,14 @@ vec2 epiano(float note, float t)
 // #define E(a) 0., 1.
 // #define B(a, b) 0., b
 
-// notes ... [note_number, note_number, ...]
-// // notes ... [note_number, len, note_number, len, ...]
+// // notes ... [note_number, note_number, ...]
+// notes ... [note_number, len, note_number, len, ...]
 // measureCount ... 小節数. 2ビートで1小節
-#define SEQUENCER(rawBeat, time, beatTempo, measureCount, notes, toneFunc) \
-    float indexOffset = beatTempo / 4.; /* 4拍が基本 */\
-    float localBeat = mod(rawBeat, measureCount * 2.); /* シーケンス内でのビート番号 */ \
-    float beatIndex = floor(localBeat * indexOffset); \
-    int rawNoteNumber = notes[int(beatIndex)]; \
-    float localTime = beatToTime(mod(localBeat, 1. / indexOffset)); \
-    int[4] noteNumbers = int[4]( \
-        (int(rawNoteNumber) & 255), \
-        ((int(rawNoteNumber) >> 8) & 255), \
-        ((int(rawNoteNumber) >> 16) & 255), \
-        ((int(rawNoteNumber) >> 24) & 255) \
-    ); \
+// TODO: little-endian, big-endian 考慮
+// ref: https://github.com/equinor/glsl-float-to-rgba/blob/master/README.md
+#define SEQUENCER(rawBeat, time, beatTempo, measureCount, notes, noteCount, toneFunc) \
     /* \
-    WIP: 
+    WIP: \
     float noteNumber = notes[int(beatIndex * 2.)]; \
     float noteLength = notes[int(beatIndex * 2. + 1.)]; \
     float localTime = beatToTime(mod(localBeat, 1. / indexOffset)); \
@@ -577,12 +578,19 @@ vec2 epiano(float note, float t)
     float fallbackAmp = (1. - smoothstep(.98, .99, fract(localBeat * indexOffset))); \
     fallbackAmp = 1.; \
     */ \
-    int accRawNoteLength = 0;
-    for(int i = 0; i < noteCount; i++) { \
-        accRawNoteLength += noteLength; \
-        break; \
-    } \
-    float fallbackAmp = (1. - smoothstep(.98, .999, fract(localBeat * indexOffset))); /* ぶつ切りにならないようなfallback */ \
+    /* default \
+    float indexOffset = beatTempo / 4.; \
+    float localBeat = mod(rawBeat, measureCount * 2.); \
+    float beatIndex = floor(localBeat * indexOffset); \
+    int rawNoteNumber = notes[int(beatIndex)]; \
+    float localTime = beatToTime(mod(localBeat, 1. / indexOffset)); \
+    int[4] noteNumbers = int[4]( \
+        (int(rawNoteNumber) & 255), \
+        ((int(rawNoteNumber) >> 8) & 255), \
+        ((int(rawNoteNumber) >> 16) & 255), \
+        ((int(rawNoteNumber) >> 24) & 255) \
+    ); \
+    float fallbackAmp = (1. - smoothstep(.98, .999, fract(localBeat * indexOffset))); \
     vec2 res = vec2(0.); \
     float acc = 0.; \
     for(int i = 0; i < 4; i++) { \
@@ -591,38 +599,88 @@ vec2 epiano(float note, float t)
         res += vec2(toneFunc(fNoteNumber, localTime)) * isNoteOn * fallbackAmp; \
         acc += isNoteOn; \
     } \
+    float gainAcc = 1.5; \
+    res /= max(1., acc - gainAcc); \
+    */ \
+    float tempoScale = beatTempo / 4.; /* 4拍が基本 */\
+    /* float localBeat = mod(rawBeat, measureCount * 2. * indexOffset); シーケンス内でのビート番号 */ \
+    float localBeat = mod(rawBeat, float(measureCount) * float(beatTempo)); /* シーケンス内でのビート番号 */ \
+    /* float fBeatIndex = floor(localBeat * indexOffset); */ \
+    float fBeatIndex = localBeat; \
+    int beatIndex = int(fBeatIndex); \
+    float timeLengthPerBeat = beatToTime(1. / tempoScale); /* 4拍が基本 */ \
+    /* float localTime = beatToTime(mod(localBeat, 1. / indexOffset)); */ \
+    /* int accRawBeatPrevLength = 0; */ \
+    int accRawBeatLength = 0; \
+    int rawNoteNumber = 0; \
+    int rawNoteLength = 0; \
+    for(int i = 0; i < noteCount - 1; i++) { \
+        rawNoteNumber = notes[i * 2]; \
+        rawNoteLength = notes[i * 2 + 1]; \
+        int nextRawNoteNumber = notes[(i + 1) * 2]; \
+        int nextRawNoteLength = notes[(i + 1) * 2 + 1]; \
+        /* if(beatIndex > accRawBeatLength) { */ \
+        if(float(accRawBeatLength) < localBeat && localBeat < float(accRawBeatLength) + float(nextRawNoteLength)) { \
+            break; \
+        } \
+        /* accRawBeatPrevLength = accRawBeatLength; */ \
+        accRawBeatLength += rawNoteLength; \
+    } \
+    int[4] noteNumbers = int[4]( \
+        (int(rawNoteNumber) & 255), \
+        ((int(rawNoteNumber) >> 8) & 255), \
+        ((int(rawNoteNumber) >> 16) & 255), \
+        ((int(rawNoteNumber) >> 24) & 255) \
+    ); \
+    /* ぶつ切りにならないようなfallback */ \
+    /* float fallbackAmp = (1. - smoothstep(.98, .999, fract(localBeat * indexOffset))); */ \
+    /* TODO: ここを正しい時間にする。今のbeatのtime + 今のnoteの内過ぎ去った beat の数分の長さのはず */ \
+    /* float localTimeBase = beatToTime(mod(localBeat, 1. / tempoScale)); */ \
+    float localTimeBase = beatToTime(mod(localBeat, float(rawNoteLength))); \
+    /* float localTimeOffset = localTimePerBeat * (float(beatIndex) - float(accRawBeatLength)); */ \
+    /* float localTime = localTimeBase + localTimeOffset; */ \
+    float localTime = localTimeBase; \
+    vec2 res = vec2(0.); \
+    float acc = 0.; \
+    for(int i = 0; i < 4; i++) { \
+        float fNoteNumber = float(noteNumbers[i]); \
+        float isNoteOn = (fNoteNumber > 0. ? 1. : 0.); \
+        /* res += vec2(toneFunc(fNoteNumber, localTime)) * isNoteOn * fallbackAmp; */ \
+        res += vec2(toneFunc(fNoteNumber, localTime)) * isNoteOn; \
+        acc += isNoteOn; \
+    } \
     float gainAcc = 1.5; /* 同時に音を鳴らす際の音量を上げる調整値. 引数で渡すようにしてもよい */ \
     res /= max(1., acc - gainAcc); \
 
-vec2 arpSeqT4(float rawBeat, float time) {
-    int[] notes = int[](
-        65, 0,
-        65, 0,
-        65, 65,
-        65, 0
-    );
-    SEQUENCER(rawBeat, time, T4, 4., notes, arp);
-    return res;
-}
- 
-vec2 arpSeqT8(float rawBeat, float time) {
-    // int[] notes = int[](
-    //     G2m7, 65, 65, 0,
-    //     G2m7, 65, 65, 0
-    //     
-    // );
-    // SEQUENCER(rawBeat, time, T8, 2., notes, arp);
-    
-    int[] notes = int[](
-        F, G, Am, G,
-        0, 0, 0, F
-        // C, G, Em, D,
-        // 0, 0, 0, C
-    );
-    SEQUENCER(rawBeat, time, T8, 2., notes, arp);
-    
-    return res;
-}
+// vec2 arpSeqT4(float rawBeat, float time) {
+//     int[] notes = int[](
+//         65, 0,
+//         65, 0,
+//         65, 65,
+//         65, 0
+//     );
+//     SEQUENCER(rawBeat, time, T4, 4., notes, arp);
+//     return res;
+// }
+//  
+// vec2 arpSeqT8(float rawBeat, float time) {
+//     // int[] notes = int[](
+//     //     G2m7, 65, 65, 0,
+//     //     G2m7, 65, 65, 0
+//     //     
+//     // );
+//     // SEQUENCER(rawBeat, time, T8, 2., notes, arp);
+//     
+//     int[] notes = int[](
+//         F, G, Am, G,
+//         0, 0, 0, F
+//         // C, G, Em, D,
+//         // 0, 0, 0, C
+//     );
+//     SEQUENCER(rawBeat, time, T8, 2., notes, arp);
+//     
+//     return res;
+// }
 
 vec2 arpSeqBase(float rawBeat, float time) {
     // int[] notes = int[](
@@ -633,35 +691,45 @@ vec2 arpSeqBase(float rawBeat, float time) {
     // SEQUENCER(rawBeat, time, T8, 2., notes, arp);
     
     int[] notes = int[](
-        F, F, F, F,
-        F, F, F, F,
-        G, G, G, G,
-        G, G, G, G,
-        Am, Am, Am, Am,
-        Am, Am, Am, Am,
-        G, G, G, G,
-        G, G, G, G
+       //  F(1), O(1),
+       //  F(1), O(1),
+       //  F(2),
+       //  F(1), F(1)
+        
+        // F(1), D(1), F(1), F(1),
+        // F(1), F(1), F(1), F(1)
+        
+        HA(1), HG(1), HF(1), HE(1),
+        HD(1), HC(1), HB(1), HA(1)
+        
+        // F(2), F(1), O(1),
+        // F(2), F(1), O(1)
+        // G, G, G, G,
+        // G, G, G, G,
+        // Am, Am, Am, Am,
+        // Am, Am, Am, Am,
+        // G, G, G, G,
+        // G, G, G, G
+        
         // B, B, B, B,
         // Fsh, Fsh, Fsh, Fsh,
         // Dshm, Dshm, Dshm, Dshm,
         // Csh, Csh, Csh, Csh
     );
-    SEQUENCER(rawBeat, time, T8, 8., notes, arp);
-    
+    SEQUENCER(rawBeat, time, T4, 2., notes, 8, arp);
     return res;
 }
     
-    
-vec2 arpSeqT16(float rawBeat, float time) {
-    int[] notes = int[](
-        65, 0, 65, 0, 65, 0, 65, 0,
-        65, 0, 65, 65, 65, 0, 65, 65,
-        65, 0, 65, 0, 65, 0, 65, 0,
-        65, 0, 65, 65, 65, 0, 65, 65
-    );
-    SEQUENCER(rawBeat, time, T16, 4., notes, arp);
-    return res;
-}
+// vec2 arpSeqT16(float rawBeat, float time) {
+//     int[] notes = int[](
+//         65, 0, 65, 0, 65, 0, 65, 0,
+//         65, 0, 65, 65, 65, 0, 65, 65,
+//         65, 0, 65, 0, 65, 0, 65, 0,
+//         65, 0, 65, 65, 65, 0, 65, 65
+//     );
+//     SEQUENCER(rawBeat, time, T16, 4., notes, arp);
+//     return res;
+// }
 
 // vec2 pianoSeqT4(float rawBeat, float time) {
 //     // int[] notes = int[](
@@ -695,47 +763,47 @@ vec2 arpSeqT16(float rawBeat, float time) {
 //     return res;
 // }
 
-vec2 hihat2SeqT8(float rawBeat, float time) {
-    int[] notes = int[](
-        1, 1, 1, 1,
-        1, 1, 1, 1
-    );
-    SEQUENCER(rawBeat, time, T8, 2., notes, hihat2);
-    return res;
-}
-
-vec2 kickSeqT4(float rawBeat, float time) {
-    int[] notes = int[](
-        1, 1,
-        1, 1,
-        1, 1,
-        1, 1
-    );
-    SEQUENCER(rawBeat, time, T4, 4., notes, kick);
-    return res;
-}
-
-vec2 kickSeqT16(float rawBeat, float time) {
-    int[] notes = int[](
-        1, 0, 0, 0, 1, 0, 0, 0,
-        1, 0, 1, 0, 1, 0, 0, 0,
-        1, 0, 0, 0, 1, 0, 0, 1,
-        1, 0, 1, 0, 1, 0, 0, 0
-    );
-    SEQUENCER(rawBeat, time, T16, 4., notes, kick);
-    return res;
-}
-
-vec2 snareFillSeqT4(float rawBeat, float time) {
-    int[] notes = int[](
-        0, 1,
-        0, 1,
-        0, 1,
-        0, 1
-    );
-    SEQUENCER(rawBeat, time, T4, 4., notes, snareFill);
-    return res;
-}
+// vec2 hihat2SeqT8(float rawBeat, float time) {
+//     int[] notes = int[](
+//         1, 1, 1, 1,
+//         1, 1, 1, 1
+//     );
+//     SEQUENCER(rawBeat, time, T8, 2., notes, hihat2);
+//     return res;
+// }
+// 
+// vec2 kickSeqT4(float rawBeat, float time) {
+//     int[] notes = int[](
+//         1, 1,
+//         1, 1,
+//         1, 1,
+//         1, 1
+//     );
+//     SEQUENCER(rawBeat, time, T4, 4., notes, kick);
+//     return res;
+// }
+// 
+// vec2 kickSeqT16(float rawBeat, float time) {
+//     int[] notes = int[](
+//         1, 0, 0, 0, 1, 0, 0, 0,
+//         1, 0, 1, 0, 1, 0, 0, 0,
+//         1, 0, 0, 0, 1, 0, 0, 1,
+//         1, 0, 1, 0, 1, 0, 0, 0
+//     );
+//     SEQUENCER(rawBeat, time, T16, 4., notes, kick);
+//     return res;
+// }
+// 
+// vec2 snareFillSeqT4(float rawBeat, float time) {
+//     int[] notes = int[](
+//         0, 1,
+//         0, 1,
+//         0, 1,
+//         0, 1
+//     );
+//     SEQUENCER(rawBeat, time, T4, 4., notes, snareFill);
+//     return res;
+// }
 
 float beatToMeasure(float beat) {
     return beat * .5;
@@ -769,13 +837,13 @@ vec2 mainSound(float time) {
     // return kickSeqT4(beat, time);
     float phase0 = phase(beat, 0., 4.);
     float phase1 = phase(beat, 4., 8.);
-    sound +=
-        hihat2SeqT8(beat, time)
-        + kickSeqT4(beat, time) * .5
-        + kickSeqT16(beat, time) * .5
-        + snareFillSeqT4(beat, time) * .5;
-        // + pianoSeqT4(beat, time);
-        // + arpSeqT8(beat, time);
+    // sound +=
+    //     hihat2SeqT8(beat, time)
+    //     + kickSeqT4(beat, time) * .5
+    //     + kickSeqT16(beat, time) * .5
+    //     + snareFillSeqT4(beat, time) * .5;
+    //     // + pianoSeqT4(beat, time);
+    //     // + arpSeqT8(beat, time);
    
     // baseっぽい感じ
     // float b = 440.;
@@ -806,8 +874,22 @@ void main() {}
         gl.shaderSource(shader, src);
         gl.compileShader(shader);
         if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-            console.error(gl.getShaderInfoLog(shader));
-            return;
+            const infoLog = gl.getShaderInfoLog(shader);
+            console.error(`shader error:
+            
+---
+
+${infoLog}
+
+---
+            
+${src
+                .split('\n')
+                .map((line, i) => {
+                    return `${i + 1}: ${line}`;
+                })
+                .join('\n')}       
+`);
         }
         return shader;
     };
@@ -917,15 +999,15 @@ void main() {}
         }
 
         gl.disable(gl.RASTERIZER_DISCARD);
-        
+
 
         const node = audioContext.createBufferSource();
         const gainNode = audioContext.createGain();
-       
+
         // 音量調整
         gainNode.connect(audioContext.destination);
         gainNode.gain.value = 0.2;
-        
+
         node.connect(gainNode);
         node.buffer = audioBuffer;
         node.loop = false;

@@ -700,7 +700,7 @@ vec2 arpSeqBase(float rawBeat, float time) {
        //  F(2),
        //  F(1), F(1)
         
-        F(2), O(1), F(1),
+        F(4),
         F(1), O(1), F(1), F(1)
         
         // HG(2), HF(2),
@@ -723,7 +723,7 @@ vec2 arpSeqBase(float rawBeat, float time) {
         // Dshm, Dshm, Dshm, Dshm,
         // Csh, Csh, Csh, Csh
     );
-    SEQUENCER(rawBeat, time, T8, 8., notes, 7, epiano);
+    SEQUENCER(rawBeat, time, T8, 8., notes, 5, epiano);
     return res * 3.;
 }
     

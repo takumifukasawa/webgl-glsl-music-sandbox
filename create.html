@@ -547,52 +547,11 @@ vec2 epiano(float note, float t)
 // #define E(a) 0., 1.
 // #define B(a, b) 0., b
 
-// // notes ... [note_number, note_number, ...]
 // notes ... [note_number, len, note_number, len, ...]
 // measureCount ... 小節数. 4拍で1小節とする
 // TODO: little-endian, big-endian 考慮
 // ref: https://github.com/equinor/glsl-float-to-rgba/blob/master/README.md
 #define SEQUENCER(rawBeat, time, beatTempo, totalBeatCount, notes, noteCount, toneFunc) \
-    /* \
-    WIP: \
-    float noteNumber = notes[int(beatIndex * 2.)]; \
-    float noteLength = notes[int(beatIndex * 2. + 1.)]; \
-    float localTime = beatToTime(mod(localBeat, 1. / indexOffset)); \
-    if(noteLength < .5) { \
-        localBeat = mod(rawBeat, measureCount * 2.); \
-        beatIndex = max(beatIndex, beatIndex - 1.); \
-        noteNumber = notes[int(beatIndex * 2.)]; \
-        noteLength = notes[int(beatIndex * 2. + 1.)]; \
-        indexOffset = (beatTempo / noteLength) / 4.; \
-        localTime = beatToTime(mod(localBeat, 1. / indexOffset)) + (1. / indexOffset) * (noteLength - 1.); \
-    } \
-    float fallbackAmp = (1. - smoothstep(.98, .99, fract(localBeat * indexOffset))); \
-    fallbackAmp = 1.; \
-    */ \
-    /* default \
-    float indexOffset = beatTempo / 4.; \
-    float localBeat = mod(rawBeat, measureCount * 2.); \
-    float beatIndex = floor(localBeat * indexOffset); \
-    int rawNoteNumber = notes[int(beatIndex)]; \
-    float localTime = beatToTime(mod(localBeat, 1. / indexOffset)); \
-    int[4] noteNumbers = int[4]( \
-        (int(rawNoteNumber) & 255), \
-        ((int(rawNoteNumber) >> 8) & 255), \
-        ((int(rawNoteNumber) >> 16) & 255), \
-        ((int(rawNoteNumber) >> 24) & 255) \
-    ); \
-    float fallbackAmp = (1. - smoothstep(.98, .999, fract(localBeat * indexOffset))); \
-    vec2 res = vec2(0.); \
-    float acc = 0.; \
-    for(int i = 0; i < 4; i++) { \
-        float fNoteNumber = float(noteNumbers[i]); \
-        float isNoteOn = (fNoteNumber > 0. ? 1. : 0.); \
-        res += vec2(toneFunc(fNoteNumber, localTime)) * isNoteOn * fallbackAmp; \
-        acc += isNoteOn; \
-    } \
-    float gainAcc = 1.5; \
-    res /= max(1., acc - gainAcc); \
-    */ \
     float tempoScale = beatTempo / 4.; /* 4拍が基本 */ \
     /* float fLocalBeatIndex = mod(rawBeat, float(measureCount) * float(beatTempo)); シーケンス内でのビート番号 */ \
     float fLocalBeatIndex = mod(rawBeat * tempoScale, float(totalBeatCount)); /* シーケンス内でのビート番号 */ \
@@ -642,8 +601,7 @@ vec2 epiano(float note, float t)
     float fLocalBeatIndexInNote = fLocalBeatIndex - float(accRawBeatPrevLength); \
     float localTime = beatToTime(mod(fLocalBeatIndexInNote, float(currentNoteLength)) / tempoScale); \
     /* ぶつ切りにならないようなfallback */ \
-    /* float fallbackAmp = (1. - smoothstep(.98, .999, fLocalBeatIndexInNote / float(currentNoteLength))); */ \
-    float fallbackAmp = 1. - smoothstep(.97, .99, fLocalBeatIndexInNote / float(currentNoteLength)); \
+    float fallbackAmp = 1. - smoothstep(.98, .999, fLocalBeatIndexInNote / float(currentNoteLength)); \
     vec2 res = vec2(0.); \
     float acc = 0.; \
     for(int i = 0; i < 4; i++) { \

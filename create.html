@@ -47,26 +47,17 @@ out vec2 vSound;
 // #define A3m N3(57, 60, 64)
 // #define B3 N3(59, 63, 66)
 #define O(a) 0, a 
-#define B N3(59, 63, 66)
-#define C N3(60, 64, 67)
-#define Csh N3(61, 65, 68)
-// #define D N3(62, 65, 69)
-#define D(a) 62, a
+#define B(a) N3(59, 63, 66), a
+#define C(a) N3(60, 64, 67), a
+#define Csh(a) N3(61, 65, 68), a
+#define D(a) N3(62, 65, 69), a
 #define Dshm N3(63, 67, 70)
-// #define F(a) N3(65, 69, 72), a
-#define F(a) 65, a
-#define Fsh N3(66, 70, 73)
-#define Em N3(64, 67, 71)
-#define G N3(67, 71, 74)
-#define Gm7 N4(67, 71, 74, 77)
-#define Am N3(69, 72, 76)
-#define HA(a) 69, a
-#define HG(a) 67, a
-#define HF(a) 65, a
-#define HE(a) 64, a
-#define HD(a) 62, a
-#define HC(a) 60, a
-#define HB(a) 59, a
+#define F(a) N3(65, 69, 72), a
+#define Fsh(a) N3(66, 70, 73), a
+#define Em(a) N3(64, 67, 71), a
+#define G(a) N3(67, 71, 74), a
+#define Gm7(a) N4(67, 71, 74, 77), a
+#define Am(a) N3(69, 72, 76), a
 
 // Gm7
 // G3, B#4, D4, F4
@@ -602,9 +593,9 @@ vec2 epiano(float note, float t)
     float gainAcc = 1.5; \
     res /= max(1., acc - gainAcc); \
     */ \
-    /* float tempoScale = beatTempo / 4.; 4拍が基本 */ \
+    float tempoScale = beatTempo / 4.; /* 4拍が基本 */ \
     /* float fLocalBeatIndex = mod(rawBeat, float(measureCount) * float(beatTempo)); シーケンス内でのビート番号 */ \
-    float fLocalBeatIndex = mod(rawBeat, float(totalBeatCount)); /* シーケンス内でのビート番号 */ \
+    float fLocalBeatIndex = mod(rawBeat * tempoScale, float(totalBeatCount)); /* シーケンス内でのビート番号 */ \
     int accRawBeatPrevLength = 0; \
     int accRawBeatLength = 0; \
     /* int rawNoteNumber = 0; */ \
@@ -648,7 +639,7 @@ vec2 epiano(float note, float t)
     /* TODO: ぶつ切りにならないようなfallback */ \
     /* float fallbackAmp = (1. - smoothstep(.98, .999, fract(fLocalBeatIndex * indexOffset))); */ \
     /* TODO: ここを正しい時間にする。今のbeatのtime + 今のnoteの内過ぎ去った beat の数分の長さのはず */ \
-    float localTime = beatToTime(mod(fLocalBeatIndex - float(accRawBeatPrevLength), float(currentNoteLength))); \
+    float localTime = beatToTime(mod(fLocalBeatIndex - float(accRawBeatPrevLength), float(currentNoteLength)) / tempoScale); \
     vec2 res = vec2(0.); \
     float acc = 0.; \
     for(int i = 0; i < 4; i++) { \
@@ -705,12 +696,12 @@ vec2 arpSeqBase(float rawBeat, float time) {
        //  F(2),
        //  F(1), F(1)
         
-        // F(1), D(1), F(1), F(1),
-        // F(1), F(1), F(1), F(1)
+        F(2), F(1), O(1),
+        F(1), F(1), F(1), F(1)
         
-        HG(2), HF(2),
-        HA(1), /* TODO: ここに隙間があいて一つずれてる */ HB(1), HC(1), HD(1),
-        HA(1), HB(1), HC(1), HD(1)
+        // HG(2), HF(2),
+        // HG(1), O(1), HC(1), HD(1),
+        // HA(1), HB(1), HC(1), O(1)
         // HA(2), HF(2),
         // HE(1), O(3)
         
@@ -728,7 +719,7 @@ vec2 arpSeqBase(float rawBeat, float time) {
         // Dshm, Dshm, Dshm, Dshm,
         // Csh, Csh, Csh, Csh
     );
-    SEQUENCER(rawBeat, time, T4, 12., notes, 10, epiano);
+    SEQUENCER(rawBeat, time, T8, 8., notes, 7, epiano);
     return res * 3.;
 }
     

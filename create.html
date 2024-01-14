@@ -3,6 +3,17 @@
     <meta charset="UTF-8">
 </head>
 <body>
+
+<div class="controller-wrapper">
+    <p>play measure: <span id="js-measure-label">0</span></p>
+    <label>
+        <input id="js-seek-slider" type="range" min="0" max="1" step="1"/>
+    </label>
+    <br/>
+    <input id="js-play-button" type="button" value="play">
+    <input id="js-stop-button" type="button" value="stop">
+</div>
+
 <script>
     // ------------------------------------------------------------------------------
     // ref:
@@ -12,6 +23,8 @@
     // https://github.com/fms-cat/20180310-glsl-music/
     // ------------------------------------------------------------------------------
 
+    const BPM = 125;
+    const MAX_MEASURE = 80;
 
     const vertexShaderText = `#version 300 es
 
@@ -22,7 +35,7 @@ uniform float uSampleRate;
 
 out vec2 vSound;
 
-#define BPM 125.
+#define BPM ${BPM}.
 #define PI 3.1415
 #define TAU 6.2831
  
@@ -1291,9 +1304,16 @@ ${src
     //     return vao;
     // }
 
-    const start = () => {
-        const audioContext = new AudioContext();
-        const audioBuffer = audioContext.createBuffer(2, audioContext.sampleRate * DURATION, audioContext.sampleRate);
+    let audioContext = null;
+    let audioBuffer = null;
+
+    const load = () => {
+        if (audioContext && audioBuffer) {
+            return;
+        }
+
+        audioContext = new AudioContext();
+        audioBuffer = audioContext.createBuffer(2, audioContext.sampleRate * DURATION, audioContext.sampleRate);
 
         const canvas = document.createElement("canvas");
         const gl = canvas.getContext("webgl2");
@@ -1304,14 +1324,6 @@ ${src
         const uniformLocations = getUniformLocations(gl, program, ["uBlockOffset", "uSampleRate"]);
 
         const array = new Float32Array(2 * SAMPLES); // L,Rのため2倍
-        // const vao = createVAO(gl, [
-        //     {
-        //         location: 0,
-        //         data: array,
-        //         usage: gl.DYNAMIC_COPY,
-        //         size: 3
-        //     }
-        // ]);
         const vbo = createVBO(gl, array, gl.DYNAMIC_COPY);
 
         const transformFeedback = gl.createTransformFeedback();
@@ -1355,9 +1367,24 @@ ${src
         }
 
         gl.disable(gl.RASTERIZER_DISCARD);
+    };
 
+    let node = null;
 
-        const node = audioContext.createBufferSource();
+    const stop = () => {
+        console.log("[stop]", node);
+        if (node) {
+            node.stop();
+            node = null;
+        }
+    }
+
+    const play = (time) => {
+        stop();
+
+        console.log("[play]");
+
+        node = audioContext.createBufferSource();
         const gainNode = audioContext.createGain();
 
         // 音量調整
@@ -1368,18 +1395,40 @@ ${src
         node.buffer = audioBuffer;
         node.loop = false;
 
-        node.start(0);
+        node.start(0, time);
 
         return node;
     };
 
+    const start = (time = 0) => {
+        load();
+        play(time);
+    };
+
+    const measureLabelElement = document.getElementById("js-measure-label");
+    
+    const seekElement = document.getElementById("js-seek-slider");
+    seekElement.max = MAX_MEASURE;
+   
+    seekElement.addEventListener('input', () => {
+        measureLabelElement.textContent = seekElement.value.toString();
+    });
+
+    document.getElementById("js-play-button").addEventListener("click", () => {
+        const measure = seekElement.value;
+        start(60 * 4 * measure / BPM);
+    });
+    document.getElementById("js-stop-button").addEventListener("click", () => {
+        stop();
+    });
+
     let isStarted = false;
     document.addEventListener("click", () => {
-        if (!isStarted) {
-            console.log("start");
-            start();
-        }
-        isStarted = true;
+        // if (!isStarted) {
+        //     console.log("start");
+        //     start(0);
+        // }
+        // isStarted = true;
     });
 
 </script>

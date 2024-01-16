@@ -996,13 +996,23 @@ vec2 baseIntroSeq(float rawBeat, float time) {
         // Em2(2), Em2(2), Em2(2), Em2(2),
         // CM3(2), CM3(2), CM3(2), CM3(2),
         // Bm2(2), Bm2(2), Bm2(2), Bm2(2)
+      
+        // pattern4 
+        // サビ的 
+        // GM2(3), Em2(3), Am2(3), GM2(5), O(2),
+        // GM2(3), Em2(3), Am2(3), GM2(5), O(2),
+        // GM2(3), Em2(3), Bm2(3), Am2(4), Bm2(2), DM3(1),
+        // CM3(3), Bm2(3), GM2(5), O(5)
     );
     
     // pattern1
+    SEQUENCER(rawBeat, time, T8, 32., notes, 16, base)
+    
+    // pattern3
     // SEQUENCER(rawBeat, time, T8, 32., notes, 16, base)
     
     // pattern3
-    SEQUENCER(rawBeat, time, T8, 32., notes, 16, base)
+    // SEQUENCER(rawBeat, time, T8, 64., notes, 20, base)
     
     return vec2(res) * .8;
 }
@@ -1100,6 +1110,8 @@ vec2 mainSound(float time) {
     vec2 sound = vec2(0.);
   
     float measure = beatToMeasure(beat);
+    
+    // return baseIntroSeq(beat, time);
     
     if(0. <= measure && measure < 8.) { // intro
         sound +=
